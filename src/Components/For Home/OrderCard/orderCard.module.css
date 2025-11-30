@@ -1,0 +1,290 @@
+.orderCard {
+  background: #ffffff;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.orderCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.orderContent {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.orderAvatar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid #e5e7eb;
+}
+
+.orderAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.orderAvatarFallback {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+.orderInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.orderUser {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #1f2937;
+  margin: 0 0 0.25rem 0;
+}
+
+.orderService {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
+}
+
+.orderMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.orderTime,
+.orderBudget,
+.acceptedText,
+.arrivalTime,
+.onWayText,
+.offerReceivedText,
+.receivedText,
+.offerGivenText,
+.clientWaitingText {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.orderTime {
+  color: #6b7280;
+}
+
+.orderBudget {
+  color: #059669;
+  font-weight: 700;
+}
+
+.acceptedText {
+  color: #059669;
+  font-weight: 600;
+}
+
+.arrivalTime {
+  color: #374151;
+}
+
+.onWayText {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.offerReceivedText {
+  color: #8b5cf6;
+  font-weight: 600;
+}
+
+.receivedText {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.offerGivenText {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.clientWaitingText {
+  color: #10b981;
+  font-weight: 600;
+}
+
+/* Location and See Freelancer Buttons */
+.locationBtn,
+.seeFreelancerBtn {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #ffffff;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.locationBtn:hover,
+.seeFreelancerBtn:hover {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.seeFreelancerBtn {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+}
+
+.seeFreelancerBtn:hover {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+}
+
+.orderBadges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.orderBadge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.badge-given {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.badge-received {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.badge-pending {
+  background: rgba(107, 114, 128, 0.1);
+  color: #4b5563;
+}
+
+.badge-accepted {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.badge-offer-given {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+}
+
+.badge-offer-received {
+  background: rgba(139, 92, 246, 0.1);
+  color: #7c3aed;
+}
+
+.badge-on-way {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+}
+
+/* Card Status Styles */
+.order-given {
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.order-received {
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.offer-accepted {
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.offer-received {
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+.offer-given {
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.on-way {
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.client-waiting {
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .orderCard {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .orderContent {
+    gap: 0.5rem;
+  }
+
+  .orderAvatar {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .orderUser {
+    font-size: 0.9rem;
+  }
+
+  .orderService {
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .orderMeta {
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .locationBtn,
+  .seeFreelancerBtn {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.7rem;
+    margin-top: 0.4rem;
+  }
+
+  .orderBadges {
+    gap: 0.4rem;
+  }
+
+  .orderBadge {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.65rem;
+  }
+}

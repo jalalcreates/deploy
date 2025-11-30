@@ -1,0 +1,290 @@
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  padding: 24px;
+}
+
+.modalContent {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.modalHeader {
+  background: linear-gradient(135deg, #ffd700 0%, #ffa500 100%);
+  color: white;
+  padding: 24px;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+}
+
+.reviewIcon {
+  font-size: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 12px;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.modalBody {
+  padding: 32px;
+}
+
+.serviceInfo {
+  background: #fff8e1;
+  padding: 24px;
+  border-radius: 12px;
+  margin-bottom: 32px;
+  border-left: 4px solid #ffd700;
+}
+
+.serviceTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 12px 0;
+}
+
+.freelancerName {
+  color: #666;
+  margin: 8px 0;
+  font-weight: 500;
+}
+
+.completionTime {
+  color: #888;
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.ratingSection {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.ratingTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.starRating {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.star {
+  background: none;
+  border: none;
+  font-size: 32px;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.starEmpty {
+  color: #ddd;
+}
+
+.starFilled {
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+}
+
+.star:hover {
+  transform: scale(1.1);
+}
+
+.ratingText {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+  margin: 0;
+}
+
+.reviewSection {
+  margin-bottom: 32px;
+}
+
+.reviewLabel {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.reviewTextarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.reviewTextarea:focus {
+  outline: none;
+  border-color: #ffd700;
+}
+
+.charCount {
+  font-size: 12px;
+  color: #888;
+  text-align: right;
+  margin-top: 8px;
+}
+
+.recommendSection {
+  margin-bottom: 24px;
+}
+
+.recommendTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.recommendButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recommendBtn {
+  padding: 16px 20px;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  background: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.recommendNeutral {
+  color: #666;
+}
+
+.recommendNeutral:hover {
+  border-color: #ccc;
+  background: #f9f9f9;
+}
+
+.recommendYes {
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+  border-color: #4caf50;
+}
+
+.recommendNo {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  color: white;
+  border-color: #f44336;
+}
+
+.modalActions {
+  display: flex;
+  gap: 16px;
+  padding: 24px 32px;
+  background: #fff8e1;
+  margin: 0;
+  border-radius: 0 0 16px 16px;
+}
+
+.cancelBtn,
+.submitBtn {
+  padding: 14px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancelBtn {
+  background: #e0e0e0;
+  color: #666;
+}
+
+.submitBtn {
+  background: linear-gradient(135deg, #ffd700, #ffa500);
+  color: white;
+  flex: 1;
+}
+
+.submitBtn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.submitBtn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.error {
+  color: #f44336;
+  font-size: 12px;
+  margin-top: 8px;
+  display: block;
+  text-align: center;
+}
