@@ -5,13 +5,28 @@ import { validateOrderForm } from "@/Zod/Orders/schema";
 import { createOrder } from "@/Actions/Orders/orders";
 import styles from "./ordermodal.module.css";
 import AudioRecorder from "@/Utils/Audio/AudioRecorder";
-
+import {
+  checkFreelancerOnline,
+  sendOrderRealtime,
+  listenForOrderAccepted,
+  listenForOrderRejected,
+  listenForCounterOffer,
+  respondToCounterOffer,
+  listenForSaveAcceptedOrder,
+  listenForSaveToDatabase,
+} from "@/Actions/Orders/orderSocketClient";
+import { useEffect } from "react"; // Make sure useEffect is imported
 export default function OrderModal({
   isOpen,
   onClose,
   freelancer,
   clientUsername,
 }) {
+  const { startRecording, stopRecording, isRecording, finalAudioBlob } =
+    AudioRecorder();
+  const [orderMode, setOrderMode] = useState(null); // "realtime" | "database"
+  const [showNegotiation, setShowNegotiation] = useState(false);
+  const [counterOffer, setCounterOffer] = useState(null);
   const [formData, setFormData] = useState({
     budget: "",
     currency: "",
@@ -29,9 +44,6 @@ export default function OrderModal({
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const fileInputRef = useRef(null);
   const audioRef = useRef(null);
-
-  const { startRecording, stopRecording, isRecording, finalAudioBlob } =
-    AudioRecorder();
 
   const expertiseOptions = [
     "Web Development",
@@ -54,6 +66,48 @@ export default function OrderModal({
     "AUD - Australian Dollar",
     "JPY - Japanese Yen",
   ];
+  // ADD THIS AFTER YOUR OTHER useEffect HOOKS (or create new one):
+  useEffect(() => {
+    if (orderMode !== "realtime") return;
+
+    // Listen for order accepted
+    const cleanupAccepted = listenForOrderAccepted((data) => {
+      console.log("🎉 Order accepted:", data);
+      alert(
+        `🎉 ${data.freelancerUsername} accepted your order! Final price: ${data.finalPrice}`
+      );
+      setShowNegotiation(false);
+      onClose();
+    });
+
+    // Listen for order rejected
+    const cleanupRejected = listenForOrderRejected((data) => {
+      console.log("❌ Order rejected:", data);
+      alert(`❌ ${data.freelancerUsername} declined your order.`);
+      setShowNegotiation(false);
+      onClose();
+    });
+
+    // Listen for counter offer
+    const cleanupCounter = listenForCounterOffer((data) => {
+      console.log("💰 Counter offer received:", data);
+      setCounterOffer(data);
+      // Show negotiation UI to user
+    });
+
+    // Listen for save to database (when freelancer goes offline)
+    const cleanupSave = listenForSaveToDatabase((data) => {
+      console.log("💾 Saving to database:", data);
+      // Call your existing createOrder function to save
+    });
+
+    return () => {
+      cleanupAccepted();
+      cleanupRejected();
+      cleanupCounter();
+      cleanupSave();
+    };
+  }, [orderMode]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -157,6 +211,7 @@ export default function OrderModal({
     setIsSubmitting(true);
     setErrors({});
 
+    // Validate form
     const validation = validateOrderForm(formData);
     if (!validation.success) {
       setErrors(validation.errors);
@@ -165,39 +220,105 @@ export default function OrderModal({
     }
 
     try {
-      const submissionData = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        if (key === "expertiseRequired") {
-          submissionData.append("expertiseRequired", JSON.stringify(value));
-        } else if (key === "images") {
-          // Skip images here, we'll handle them separately
-          return;
-        } else {
-          submissionData.append(key, value);
-        }
-      });
+      // Generate unique order ID
+      const orderId = uuidv4(); // Make sure to import: import { v4 as uuidv4 } from "uuid";
 
-      if (finalAudioBlob) {
-        submissionData.append("audio", finalAudioBlob, "recording.webm");
+      // Prepare order data
+      const orderData = {
+        orderId,
+        budget: formData.budget,
+        currency: formData.currency,
+        problemStatement: formData.problemStatement,
+        expertiseRequired: formData.expertiseRequired,
+        city: formData.city,
+        deadline: formData.deadline,
+        address: formData.address,
+        phoneNumber: formData.phoneNumber,
+        images: formData.images?.map((img) => img.file.name) || [],
+        audioId: finalAudioBlob ? `audio-${orderId}` : null,
+      };
+
+      // ===== STEP 1: Check if freelancer is online =====
+      console.log(`🔍 Checking if ${freelancer.username} is online...`);
+      const isOnline = await checkFreelancerOnline(freelancer.username);
+
+      if (isOnline) {
+        // ===== FREELANCER IS ONLINE - USE SOCKETS =====
+        console.log(
+          `✅ ${freelancer.username} is ONLINE! Sending via socket...`
+        );
+        setOrderMode("realtime");
+
+        try {
+          const response = await sendOrderRealtime(
+            freelancer.username,
+            orderData
+          );
+
+          if (response.success && response.isOnline) {
+            // Order sent in real-time!
+            alert(
+              `✅ Order sent to ${freelancer.username} in real-time! They can respond instantly.`
+            );
+
+            // Don't close modal yet - wait for response
+            setShowNegotiation(true);
+          } else {
+            // Fallback to database
+            console.log("Freelancer went offline, using database...");
+            await saveToDatabase(orderId);
+          }
+        } catch (socketError) {
+          console.error("Socket error, falling back to database:", socketError);
+          await saveToDatabase(orderId);
+        }
+      } else {
+        // ===== FREELANCER IS OFFLINE - USE DATABASE =====
+        console.log(`📴 ${freelancer.username} is OFFLINE. Using database...`);
+        setOrderMode("database");
+        await saveToDatabase(orderId);
       }
 
-      // Add images with original file names
-      formData.images.forEach((img, index) => {
-        submissionData.append(`image_${index}`, img.file, img.file.name);
-      });
-      // for(let pair of submissionData.entries()){
-      //   console.log(pair[0]+ ', ' + pair[1]);
-      // }
-      const res = await createOrder(
-        submissionData,
-        clientUsername,
-        freelancer.username
-      );
+      // Helper function to save to database
+      async function saveToDatabase(orderId) {
+        const submissionData = new FormData();
+        Object.entries(formData).forEach(([key, value]) => {
+          if (key === "expertiseRequired") {
+            submissionData.append("expertiseRequired", JSON.stringify(value));
+          } else if (key === "images") {
+            return;
+          } else {
+            submissionData.append(key, value);
+          }
+        });
 
-      if (res?.success) {
-        console.log(res);
-        onClose();
-        // Clean up image URLs
+        if (finalAudioBlob) {
+          submissionData.append("audio", finalAudioBlob, "recording.webm");
+        }
+
+        formData.images.forEach((img, index) => {
+          submissionData.append(`image_${index}`, img.file, img.file.name);
+        });
+
+        const res = await createOrder(
+          submissionData,
+          clientUsername,
+          freelancer.username
+        );
+
+        if (res?.success) {
+          console.log(res);
+          alert(
+            "✅ Order sent! The freelancer will see it when they come online."
+          );
+          onClose();
+          resetForm();
+        } else {
+          setErrors({ general: res?.error || "Failed to submit order" });
+        }
+      }
+
+      function resetForm() {
         formData.images.forEach((img) => {
           URL.revokeObjectURL(img.preview);
         });
@@ -212,11 +333,10 @@ export default function OrderModal({
           phoneNumber: "",
           images: [],
         });
-      } else {
-        setErrors({ general: res?.error || "Failed to submit order" });
       }
-    } catch (err) {
-      setErrors({ general: "Something went wrong. Please try again." });
+    } catch (error) {
+      console.error("Order submission error:", error);
+      setErrors({ general: "Failed to send order. Please try again." });
     } finally {
       setIsSubmitting(false);
     }
