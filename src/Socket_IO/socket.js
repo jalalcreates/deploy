@@ -37,10 +37,11 @@ export async function initializeSocket() {
       auth: {
         token: data.token,
       },
+      credentials: "include",
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 1,
     });
 
     // Connection successful

@@ -16,6 +16,7 @@ export async function GET(request) {
         { status: 401 }
       );
     }
+    // console.log("Socket-auth cookies:", cookieStore.getAll());
 
     // Return the token securely
     return NextResponse.json(

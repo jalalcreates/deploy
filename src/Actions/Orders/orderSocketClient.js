@@ -7,9 +7,10 @@ import { getSocket } from "@/Socket_IO/socket";
 // CHECK IF FREELANCER IS ONLINE
 // ============================================
 export function checkFreelancerOnline(freelancerUsername) {
+  console.log("checkFreelancerOnline() function ran.");
   return new Promise((resolve) => {
     const socket = getSocket();
-
+    console.log({ socket });
     if (!socket || !socket.connected) {
       resolve(false);
       return;
@@ -51,14 +52,15 @@ export function sendOrderRealtime(freelancerUsername, orderData) {
     }, 10000);
 
     const handler = (response) => {
-      if (response.orderId === orderData.orderId) {
-        clearTimeout(timeoutId);
-        socket.off("order-status", handler);
-        resolve(response);
-      }
+      console.log({ response });
+      // if (response.orderId === orderData.orderId) {
+      clearTimeout(timeoutId);
+      // socket.off("order-status", handler);
+      resolve(response);
+      // }
     };
 
-    socket.on("order-status", handler);
+    socket.on("order-status", (data) => handler(data));
 
     socket.emit("send-order-realtime", {
       freelancerUsername,

@@ -1,4 +1,4 @@
-// import "server-only";
+import "server-only";
 import * as mongoose from "mongoose";
 // import { GridFSBucket } from "mongodb";
 
@@ -12,11 +12,12 @@ export async function connectDb() {
   }
   if (connected) {
     console.log("Database already connected...");
-    return;
+    return connected;
   }
   try {
     const db = await mongoose.connect(URI);
     connected = db.connections[0].states.connected;
+    return connected;
     // gfs = new GridFSBucket(db.connections[0].db, {
     //   bucketName: "audioFiles",
     // });

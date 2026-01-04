@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import styles from "./negotiationModal.module.css";
-import axios from "axios";
 import { useNegotiateOrder } from "@/Utils/Mutations/mutations";
+import {
+  checkFreelancerOnline,
+  respondToOrderRealtime,
+} from "@/Actions/Orders/orderSocketClient";
+import { getSocket } from "@/Socket_IO/socket";
 
 export default function NegotiationModal({
   isOpen,
@@ -11,6 +15,7 @@ export default function NegotiationModal({
   order,
   onRespond,
   username,
+  isRealtime = false, // NEW: Flag to indicate if this is a real-time negotiation
 }) {
   const [showCounterInput, setShowCounterInput] = useState(false);
   const [counterPrice, setCounterPrice] = useState("");
@@ -18,10 +23,8 @@ export default function NegotiationModal({
   const { mutate: negotiate } = useNegotiateOrder(onRespond);
 
   const isClient = order.type === "given";
-
   const offerGiverInfo = isClient ? order.freelancerInfo : order.customerInfo;
-
-  const offerGiverName = offerGiverInfo?.username || "Unknown User";
+  const offerGiverName = offerGiverInfo?.username;
   const offeredPrice =
     order.negotiation?.offeredPrice || order.offeredPrice || 0;
   const currency = order.currency || "USD";
@@ -29,14 +32,34 @@ export default function NegotiationModal({
   const handleAccept = async () => {
     setIsLoading(true);
     try {
-      negotiate({
-        orderId: order.orderId,
-        action: "accept",
-        newPrice: order.negotiation?.offeredPrice,
-        currentUserType: isClient ? "client" : "freelancer",
-        currentUsername: username,
-        otherUsername: offerGiverInfo?.username,
-      });
+      const acceptedPrice = order.negotiation?.offeredPrice;
+      const isOnline = await checkFreelancerOnline(freelancer.username);
+      if (isOnline) {
+        // USE SOCKETS for real-time negotiations
+        console.log("✅ Accepting offer via socket");
+
+        await respondToOrderRealtime(
+          order.orderId,
+          "accept",
+          acceptedPrice,
+          "Offer accepted"
+        );
+
+        console.log("✅ Acceptance sent via socket");
+      } else {
+        // USE DATABASE for offline negotiations
+        console.log("✅ Accepting offer via database");
+
+        negotiate({
+          orderId: order.orderId,
+          action: "accept",
+          newPrice: acceptedPrice,
+          currentUserType: isClient ? "client" : "freelancer",
+          currentUsername: username,
+          otherUsername: offerGiverInfo?.username,
+        });
+      }
+
       onClose();
     } catch (err) {
       console.error("Error accepting offer:", err);
@@ -46,18 +69,38 @@ export default function NegotiationModal({
   };
 
   const handleCounterOffer = async () => {
-    if (!counterPrice || Number.parseFloat(counterPrice) <= 0) return;
+    if (!counterPrice || parseFloat(counterPrice) <= 0) return;
     setIsLoading(true);
 
     try {
-      negotiate({
-        orderId: order.orderId,
-        action: "counter",
-        newPrice: Number.parseFloat(counterPrice),
-        currentUserType: isClient ? "client" : "freelancer",
-        currentUsername: username,
-        otherUsername: offerGiverInfo?.username,
-      });
+      const newPrice = parseFloat(counterPrice);
+
+      if (isRealtime) {
+        // USE SOCKETS for real-time negotiations
+        console.log("💰 Sending counter offer via socket");
+
+        await respondToOrderRealtime(
+          order.orderId,
+          "counter",
+          newPrice,
+          `Counter offer: ${newPrice}`
+        );
+
+        console.log("💰 Counter offer sent via socket");
+      } else {
+        // USE DATABASE for offline negotiations
+        console.log("💰 Sending counter offer via database");
+
+        negotiate({
+          orderId: order.orderId,
+          action: "counter",
+          newPrice,
+          currentUserType: isClient ? "client" : "freelancer",
+          currentUsername: username,
+          otherUsername: offerGiverInfo?.username,
+        });
+      }
+
       onClose();
     } catch (err) {
       console.error("Error countering offer:", err);
@@ -77,22 +120,10 @@ export default function NegotiationModal({
   return (
     <div className={styles.modalOverlay} onClick={handleOverlayClick}>
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-        {/* Enhanced Header */}
         <div className={styles.cardHeader}>
           <div className={styles.headerContent}>
             <div className={styles.headerTitle}>
               <h1>Order Negotiation</h1>
-              {/* <button
-                className={styles.closeBtn}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onClose();
-                }}
-                type="button"
-              >
-                ×
-              </button> */}
             </div>
             <p className={styles.headerDescription}>
               Review the offer and decide whether to accept or make a counter
@@ -102,14 +133,10 @@ export default function NegotiationModal({
         </div>
 
         <div className={styles.cardContent}>
-          {/* Offer Giver Section */}
           <div className={styles.offerGiverSection}>
             <div className={styles.offerGiverAvatar}>
               {offerGiverInfo?.profilePicture ? (
-                <img
-                  src={offerGiverInfo.profilePicture || "/placeholder.svg"}
-                  alt={offerGiverName}
-                />
+                <img src={offerGiverInfo.profilePicture} alt={offerGiverName} />
               ) : (
                 <div className={styles.offerGiverAvatarFallback}>
                   {offerGiverName
@@ -127,7 +154,6 @@ export default function NegotiationModal({
             </div>
           </div>
 
-          {/* Order Summary */}
           <div className={styles.orderSummary}>
             <div className={styles.summaryTitle}>
               <span>📋</span>
@@ -159,7 +185,6 @@ export default function NegotiationModal({
             </div>
           </div>
 
-          {/* Current Offer Section */}
           <div className={styles.currentOfferSection}>
             <div className={styles.offerTitle}>
               <span>💰</span>
@@ -175,7 +200,6 @@ export default function NegotiationModal({
             <div className={styles.offerLabel}>Offered by {offerGiverName}</div>
           </div>
 
-          {/* Action Buttons or Counter Input */}
           {!showCounterInput ? (
             <div className={styles.actionButtons}>
               <button
@@ -237,9 +261,7 @@ export default function NegotiationModal({
                   className={styles.submitCounterButton}
                   onClick={handleCounterOffer}
                   disabled={
-                    isLoading ||
-                    !counterPrice ||
-                    Number.parseFloat(counterPrice) <= 0
+                    isLoading || !counterPrice || parseFloat(counterPrice) <= 0
                   }
                 >
                   {isLoading ? "Submitting..." : "Submit Counter"}

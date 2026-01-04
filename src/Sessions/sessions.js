@@ -61,11 +61,11 @@ export async function verifyToken(token) {
 }
 
 export async function isAuthenticated(accessToken) {
-  // await connectDb();
+  await connectDb();
   try {
     if (!accessToken) return { success: false, redirectUrl: "/login" };
-
-    const refreshToken = cookies().get("refreshToken");
+    const cookieStore = await cookies();
+    const refreshToken = cookieStore.get("refreshToken");
     //checking presence of refresh token
     if (!refreshToken) return { success: false, redirectUrl: "/login" };
 

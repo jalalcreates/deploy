@@ -226,7 +226,7 @@ export default function ProfilePage({ initialUser }) {
         className={styles.modalOverlay}
         onClick={() => setShowEditModal(false)}
       >
-        <SocketTest />
+        {/* <SocketTest /> */}
         <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
           <div className={styles.modalHeader}>
             <h3>

@@ -1,21 +1,22 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { validateOrderForm } from "@/Zod/Orders/schema";
 import { createOrder } from "@/Actions/Orders/orders";
 import styles from "./ordermodal.module.css";
 import AudioRecorder from "@/Utils/Audio/AudioRecorder";
+import { v4 as uuidv4 } from "uuid";
 import {
   checkFreelancerOnline,
   sendOrderRealtime,
   listenForOrderAccepted,
   listenForOrderRejected,
   listenForCounterOffer,
-  respondToCounterOffer,
-  listenForSaveAcceptedOrder,
   listenForSaveToDatabase,
 } from "@/Actions/Orders/orderSocketClient";
-import { useEffect } from "react"; // Make sure useEffect is imported
+import NegotiationModal from "../NegotiationModal/negotiationModal";
+import LocationPermissionModal from "../LocationPermissionModal/locationPermissionModal";
+
 export default function OrderModal({
   isOpen,
   onClose,
@@ -24,9 +25,11 @@ export default function OrderModal({
 }) {
   const { startRecording, stopRecording, isRecording, finalAudioBlob } =
     AudioRecorder();
-  const [orderMode, setOrderMode] = useState(null); // "realtime" | "database"
-  const [showNegotiation, setShowNegotiation] = useState(false);
-  const [counterOffer, setCounterOffer] = useState(null);
+  const [orderMode, setOrderMode] = useState(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showNegotiationModal, setShowNegotiationModal] = useState(false);
+  const [currentOrderId, setCurrentOrderId] = useState(null);
+  const [counterOfferData, setCounterOfferData] = useState(null);
   const [formData, setFormData] = useState({
     budget: "",
     currency: "",
@@ -46,68 +49,78 @@ export default function OrderModal({
   const audioRef = useRef(null);
 
   const expertiseOptions = [
-    "Web Development",
-    "Mobile Development",
-    "UI/UX Design",
-    "Data Analysis",
-    "Digital Marketing",
-    "Content Writing",
-    "Graphic Design",
-    "SEO Optimization",
-    "Database Management",
-    "Cloud Services",
+    "Plumbing",
+    "Electrical Work",
+    "Carpentry",
+    "Painting",
+    "HVAC Repair",
+    "Appliance Repair",
+    "Cleaning Services",
+    "Gardening",
+    "Pest Control",
+    "General Handyman",
   ];
 
   const currencies = [
-    "USD - US Dollar",
-    "EUR - Euro",
-    "GBP - British Pound",
-    "CAD - Canadian Dollar",
-    "AUD - Australian Dollar",
-    "JPY - Japanese Yen",
+    { code: "USD", name: "USD - US Dollar" },
+    { code: "EUR", name: "EUR - Euro" },
+    { code: "GBP", name: "GBP - British Pound" },
+    { code: "PKR", name: "PKR - Pakistani Rupee" },
   ];
-  // ADD THIS AFTER YOUR OTHER useEffect HOOKS (or create new one):
+
+  // ===== SOCKET EVENT LISTENERS =====
   useEffect(() => {
     if (orderMode !== "realtime") return;
 
-    // Listen for order accepted
+    console.log("📡 Setting up real-time listeners for order:", currentOrderId);
+
+    // SCENARIO 1: Freelancer ACCEPTS order
     const cleanupAccepted = listenForOrderAccepted((data) => {
       console.log("🎉 Order accepted:", data);
       alert(
-        `🎉 ${data.freelancerUsername} accepted your order! Final price: ${data.finalPrice}`
+        `🎉 ${data.freelancerUsername} accepted! Final price: ${
+          data.finalPrice
+        } ${data.currency || formData.currency}`
       );
-      setShowNegotiation(false);
-      onClose();
+
+      // Show location modal and save to database
+      setShowLocationModal(true);
+      setShowNegotiationModal(false);
+
+      // Save accepted order to database
+      saveAcceptedOrderToDatabase(data);
     });
 
-    // Listen for order rejected
+    // SCENARIO 2: Freelancer REJECTS order
     const cleanupRejected = listenForOrderRejected((data) => {
       console.log("❌ Order rejected:", data);
       alert(`❌ ${data.freelancerUsername} declined your order.`);
-      setShowNegotiation(false);
-      onClose();
+      resetAndClose();
     });
 
-    // Listen for counter offer
+    // SCENARIO 3: Freelancer sends COUNTER OFFER
     const cleanupCounter = listenForCounterOffer((data) => {
       console.log("💰 Counter offer received:", data);
-      setCounterOffer(data);
-      // Show negotiation UI to user
+      setCounterOfferData(data);
+      setShowNegotiationModal(true);
     });
 
-    // Listen for save to database (when freelancer goes offline)
-    const cleanupSave = listenForSaveToDatabase((data) => {
-      console.log("💾 Saving to database:", data);
-      // Call your existing createOrder function to save
+    // Save to database (when freelancer goes offline)
+    const cleanupSave = listenForSaveToDatabase(async (data) => {
+      console.log("💾 Saving to database due to:", data.reason);
+      await saveToDatabase();
+      alert("Freelancer went offline. Order saved to database.");
+      resetAndClose();
     });
 
     return () => {
+      console.log("🔇 Cleaning up socket listeners");
       cleanupAccepted();
       cleanupRejected();
       cleanupCounter();
       cleanupSave();
     };
-  }, [orderMode]);
+  }, [orderMode, currentOrderId]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -147,7 +160,7 @@ export default function OrderModal({
 
     const validFiles = files.filter((file) => {
       const isValidType = file.type.startsWith("image/");
-      const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB
+      const isValidSize = file.size <= 5 * 1024 * 1024;
       return isValidType && isValidSize;
     });
 
@@ -177,7 +190,6 @@ export default function OrderModal({
   const removeImage = (imageId) => {
     setFormData((prev) => {
       const updatedImages = prev.images.filter((img) => img.id !== imageId);
-      // Revoke object URL to prevent memory leaks
       const imageToRemove = prev.images.find((img) => img.id === imageId);
       if (imageToRemove) {
         URL.revokeObjectURL(imageToRemove.preview);
@@ -206,12 +218,65 @@ export default function OrderModal({
     }
   };
 
+  // ===== SAVE TO DATABASE FUNCTION =====
+  const saveToDatabase = async () => {
+    try {
+      const submissionData = new FormData();
+      Object.entries(formData).forEach(([key, value]) => {
+        if (key === "expertiseRequired") {
+          submissionData.append("expertiseRequired", JSON.stringify(value));
+        } else if (key === "images") {
+          return;
+        } else {
+          submissionData.append(key, value);
+        }
+      });
+
+      if (finalAudioBlob) {
+        submissionData.append("audio", finalAudioBlob, "recording.webm");
+      }
+
+      formData.images.forEach((img, index) => {
+        submissionData.append(`image_${index}`, img.file, img.file.name);
+      });
+
+      const res = await createOrder(
+        submissionData,
+        clientUsername,
+        freelancer.username
+      );
+
+      if (res?.success) {
+        return true;
+      } else {
+        throw new Error(res?.error || "Failed to submit order");
+      }
+    } catch (error) {
+      console.error("Database save error:", error);
+      throw error;
+    }
+  };
+
+  // ===== SAVE ACCEPTED ORDER TO DATABASE =====
+  const saveAcceptedOrderToDatabase = async (acceptedData) => {
+    try {
+      console.log("💾 Saving accepted order to database...");
+      await saveToDatabase();
+      console.log("✅ Accepted order saved to database");
+    } catch (error) {
+      console.error("❌ Failed to save accepted order:", error);
+      alert(
+        "Warning: Order accepted but failed to save to database. Please contact support."
+      );
+    }
+  };
+
+  // ===== MAIN SUBMIT HANDLER =====
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setErrors({});
 
-    // Validate form
     const validation = validateOrderForm(formData);
     if (!validation.success) {
       setErrors(validation.errors);
@@ -220,13 +285,12 @@ export default function OrderModal({
     }
 
     try {
-      // Generate unique order ID
-      const orderId = uuidv4(); // Make sure to import: import { v4 as uuidv4 } from "uuid";
+      const orderId = uuidv4();
+      setCurrentOrderId(orderId);
 
-      // Prepare order data
       const orderData = {
         orderId,
-        budget: formData.budget,
+        budget: parseFloat(formData.budget),
         currency: formData.currency,
         problemStatement: formData.problemStatement,
         expertiseRequired: formData.expertiseRequired,
@@ -238,15 +302,12 @@ export default function OrderModal({
         audioId: finalAudioBlob ? `audio-${orderId}` : null,
       };
 
-      // ===== STEP 1: Check if freelancer is online =====
       console.log(`🔍 Checking if ${freelancer.username} is online...`);
       const isOnline = await checkFreelancerOnline(freelancer.username);
 
       if (isOnline) {
-        // ===== FREELANCER IS ONLINE - USE SOCKETS =====
-        console.log(
-          `✅ ${freelancer.username} is ONLINE! Sending via socket...`
-        );
+        // ===== FREELANCER ONLINE - USE SOCKETS =====
+        console.log(`✅ ${freelancer.username} is ONLINE! Using real-time...`);
         setOrderMode("realtime");
 
         try {
@@ -256,447 +317,418 @@ export default function OrderModal({
           );
 
           if (response.success && response.isOnline) {
-            // Order sent in real-time!
-            alert(
-              `✅ Order sent to ${freelancer.username} in real-time! They can respond instantly.`
-            );
-
-            // Don't close modal yet - wait for response
-            setShowNegotiation(true);
+            console.log(`✅ Order sent to ${freelancer.username} in real-time`);
+            // DON'T close modal yet - wait for socket response
           } else {
-            // Fallback to database
-            console.log("Freelancer went offline, using database...");
-            await saveToDatabase(orderId);
+            console.log(
+              "❌ Freelancer went offline, using database fallback..."
+            );
+            await saveToDatabase();
+            resetAndClose();
           }
         } catch (socketError) {
-          console.error("Socket error, falling back to database:", socketError);
-          await saveToDatabase(orderId);
+          console.error("Socket error:", socketError);
+          console.log("Using database fallback due to socket error");
+          await saveToDatabase();
+          alert("Connection error. Order saved to database.");
+          resetAndClose();
         }
       } else {
-        // ===== FREELANCER IS OFFLINE - USE DATABASE =====
-        console.log(`📴 ${freelancer.username} is OFFLINE. Using database...`);
-        setOrderMode("database");
-        await saveToDatabase(orderId);
-      }
-
-      // Helper function to save to database
-      async function saveToDatabase(orderId) {
-        const submissionData = new FormData();
-        Object.entries(formData).forEach(([key, value]) => {
-          if (key === "expertiseRequired") {
-            submissionData.append("expertiseRequired", JSON.stringify(value));
-          } else if (key === "images") {
-            return;
-          } else {
-            submissionData.append(key, value);
-          }
-        });
-
-        if (finalAudioBlob) {
-          submissionData.append("audio", finalAudioBlob, "recording.webm");
-        }
-
-        formData.images.forEach((img, index) => {
-          submissionData.append(`image_${index}`, img.file, img.file.name);
-        });
-
-        const res = await createOrder(
-          submissionData,
-          clientUsername,
-          freelancer.username
+        // ===== FREELANCER OFFLINE - USE DATABASE =====
+        console.log(
+          `🔴 ${freelancer.username} is OFFLINE. Saving to database...`
         );
-
-        if (res?.success) {
-          console.log(res);
-          alert(
-            "✅ Order sent! The freelancer will see it when they come online."
-          );
-          onClose();
-          resetForm();
-        } else {
-          setErrors({ general: res?.error || "Failed to submit order" });
-        }
-      }
-
-      function resetForm() {
-        formData.images.forEach((img) => {
-          URL.revokeObjectURL(img.preview);
-        });
-        setFormData({
-          budget: "",
-          currency: "",
-          problemStatement: "",
-          expertiseRequired: [],
-          city: "",
-          deadline: "",
-          address: "",
-          phoneNumber: "",
-          images: [],
-        });
+        setOrderMode("database");
+        await saveToDatabase();
+        alert("✅ Order sent! Freelancer will see it when they come online.");
+        resetAndClose();
       }
     } catch (error) {
       console.error("Order submission error:", error);
-      setErrors({ general: "Failed to send order. Please try again." });
+      setErrors({ general: error.message || "Failed to send order." });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // ===== RESET AND CLOSE =====
+  const resetAndClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const resetForm = () => {
+    formData.images.forEach((img) => URL.revokeObjectURL(img.preview));
+    setFormData({
+      budget: "",
+      currency: "",
+      problemStatement: "",
+      expertiseRequired: [],
+      city: "",
+      deadline: "",
+      address: "",
+      phoneNumber: "",
+      images: [],
+    });
+    setOrderMode(null);
+    setCurrentOrderId(null);
+    setShowLocationModal(false);
+    setShowNegotiationModal(false);
+    setCounterOfferData(null);
+  };
+
+  // ===== HANDLE LOCATION PERMISSION =====
+  const handleLocationPermissionGranted = (granted) => {
+    if (granted) {
+      console.log("✅ Location permission granted");
+      resetAndClose();
+    }
+    setShowLocationModal(false);
+  };
+
+  // ===== HANDLE NEGOTIATION RESPONSE =====
+  const handleNegotiationResponse = async (response, newPrice) => {
+    console.log("Negotiation response:", response, newPrice);
+    // The negotiation modal handles its own socket communication
+    // We just wait for the next socket event
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalHeader}>
-          <h2 className={styles.modalTitle}>
-            Give Order to {freelancer?.username || "Freelancer"}
-          </h2>
-          <button className={styles.closeBtn} onClick={onClose}>
-            ×
-          </button>
-        </div>
-
-        <form className={styles.form} onSubmit={handleSubmit}>
-          {errors.general && (
-            <div className={styles.errorMessage}>{errors.general}</div>
-          )}
-
-          {/* Budget and Currency */}
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Budget *</label>
-              <input
-                type="number"
-                name="budget"
-                value={formData.budget}
-                onChange={handleInputChange}
-                className={`${styles.formInput} ${
-                  errors.budget ? styles.inputError : ""
-                }`}
-                placeholder="Enter your budget"
-                min="0"
-                step="0.01"
-              />
-              {errors.budget && (
-                <span className={styles.errorText}>{errors.budget}</span>
-              )}
-            </div>
-
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Currency *</label>
-              <select
-                name="currency"
-                value={formData.currency}
-                onChange={handleInputChange}
-                className={`${styles.formSelect} ${
-                  errors.currency ? styles.inputError : ""
-                }`}
-              >
-                <option value="">Select currency</option>
-                {currencies.map((currency) => (
-                  <option key={currency} value={currency}>
-                    {currency}
-                  </option>
-                ))}
-              </select>
-              {errors.currency && (
-                <span className={styles.errorText}>{errors.currency}</span>
-              )}
-            </div>
+    <>
+      <div className={styles.modalOverlay} onClick={resetAndClose}>
+        <div
+          className={styles.modalContent}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={styles.modalHeader}>
+            <h2 className={styles.modalTitle}>
+              Give Order to {freelancer?.username || "Freelancer"}
+            </h2>
+            <button className={styles.closeBtn} onClick={resetAndClose}>
+              ×
+            </button>
           </div>
 
-          {/* Problem Statement */}
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Problem Statement</label>
-            <textarea
-              name="problemStatement"
-              value={formData.problemStatement}
-              onChange={handleInputChange}
-              className={`${styles.formTextarea} ${
-                errors.problemStatement ? styles.inputError : ""
-              }`}
-              placeholder="Describe your project requirements in detail..."
-            />
-            {errors.problemStatement && (
-              <span className={styles.errorText}>
-                {errors.problemStatement}
-              </span>
+          <form className={styles.form} onSubmit={handleSubmit}>
+            {errors.general && (
+              <div className={styles.errorMessage}>{errors.general}</div>
             )}
-          </div>
 
-          {/* Image Upload Section */}
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>
-              Project Images (Optional - Max 4)
-              <span className={styles.labelHelper}>
-                Help freelancer understand your requirements better
-              </span>
-            </label>
-
-            <div className={styles.imageUploadSection}>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                multiple
-                className={styles.hiddenInput}
-              />
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className={styles.uploadButton}
-                disabled={formData.images.length >= 4}
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="9" cy="9" r="2" />
-                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-                </svg>
-                {formData.images.length === 0
-                  ? "Add Images"
-                  : `Add More (${formData.images.length}/4)`}
-              </button>
-
-              {formData.images.length > 0 && (
-                <div className={styles.imagePreviewGrid}>
-                  {formData.images.map((image) => (
-                    <div key={image.id} className={styles.imagePreview}>
-                      <img
-                        src={image.preview || "/placeholder.svg"}
-                        alt="Preview"
-                        className={styles.previewImage}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(image.id)}
-                        className={styles.removeImageBtn}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            {errors.images && (
-              <span className={styles.errorText}>{errors.images}</span>
-            )}
-          </div>
-
-          {/* Audio Recording */}
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Voice Note (Optional)</label>
-            <div className={styles.recordingContainer}>
-              <div className={styles.recordingButtonsDiv}>
-                {isRecording ? (
-                  <button
-                    type="button"
-                    className={`${styles.RecordingButtons} ${styles.recording}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      stopRecording();
-                    }}
-                  >
-                    <div className={styles.recordingDot}></div>
-                    Stop Recording
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className={styles.RecordingButtons}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      startRecording();
-                    }}
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
-                      <line x1="12" y1="19" x2="12" y2="23" />
-                      <line x1="8" y1="23" x2="16" y2="23" />
-                    </svg>
-                    {finalAudioBlob ? "Re-record" : "Start Recording"}
-                  </button>
-                )}
-
-                {finalAudioBlob && !isRecording && (
-                  <button
-                    type="button"
-                    className={styles.playButton}
-                    onClick={playAudio}
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      {isPlayingAudio ? (
-                        <rect x="6" y="4" width="4" height="16" />
-                      ) : (
-                        <polygon points="5,3 19,12 5,21" />
-                      )}
-                      {isPlayingAudio && (
-                        <rect x="14" y="4" width="4" height="16" />
-                      )}
-                    </svg>
-                    {isPlayingAudio ? "Pause" : "Play"}
-                  </button>
+            {/* Budget and Currency */}
+            <div className={styles.formRow}>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Budget *</label>
+                <input
+                  type="number"
+                  name="budget"
+                  value={formData.budget}
+                  onChange={handleInputChange}
+                  className={`${styles.formInput} ${
+                    errors.budget ? styles.inputError : ""
+                  }`}
+                  placeholder="Enter your budget"
+                  min="0"
+                  step="0.01"
+                />
+                {errors.budget && (
+                  <span className={styles.errorText}>{errors.budget}</span>
                 )}
               </div>
 
-              {isRecording && (
-                <div
-                  className={`${styles.recordingStatus} ${styles.recordingAnimation}`}
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Currency *</label>
+                <select
+                  name="currency"
+                  value={formData.currency}
+                  onChange={handleInputChange}
+                  className={`${styles.formSelect} ${
+                    errors.currency ? styles.inputError : ""
+                  }`}
                 >
-                  <div className={styles.recordingDot}></div>
-                  <span>Recording...</span>
-                </div>
-              )}
-
-              {finalAudioBlob && !isRecording && (
-                <div className={`${styles.recordingStatus} ${styles.recorded}`}>
-                  <span>✓ Voice note recorded</span>
-                </div>
-              )}
+                  <option value="">Select currency</option>
+                  {currencies.map((currency) => (
+                    <option key={currency.code} value={currency.code}>
+                      {currency.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.currency && (
+                  <span className={styles.errorText}>{errors.currency}</span>
+                )}
+              </div>
             </div>
-            <audio ref={audioRef} style={{ display: "none" }} />
-          </div>
 
-          {/* Expertise */}
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Expertise Required *</label>
-            <div className={styles.checkboxGrid}>
-              {expertiseOptions.map((expertise) => (
-                <div key={expertise} className={styles.checkboxItem}>
-                  <input
-                    type="checkbox"
-                    id={expertise}
-                    className={styles.checkbox}
-                    checked={formData.expertiseRequired.includes(expertise)}
-                    onChange={(e) =>
-                      handleExpertiseChange(expertise, e.target.checked)
-                    }
-                  />
-                  <label htmlFor={expertise} className={styles.checkboxLabel}>
-                    {expertise}
-                  </label>
-                </div>
-              ))}
-            </div>
-            {errors.expertiseRequired && (
-              <span className={styles.errorText}>
-                {errors.expertiseRequired}
-              </span>
-            )}
-          </div>
-
-          {/* City + Deadline */}
-          <div className={styles.formRow}>
+            {/* Problem Statement */}
             <div className={styles.formGroup}>
-              <label className={styles.formLabel}>City *</label>
+              <label className={styles.formLabel}>Problem Statement</label>
+              <textarea
+                name="problemStatement"
+                value={formData.problemStatement}
+                onChange={handleInputChange}
+                className={`${styles.formTextarea} ${
+                  errors.problemStatement ? styles.inputError : ""
+                }`}
+                placeholder="Describe your project requirements in detail..."
+              />
+              {errors.problemStatement && (
+                <span className={styles.errorText}>
+                  {errors.problemStatement}
+                </span>
+              )}
+            </div>
+
+            {/* Image Upload Section */}
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>
+                Project Images (Optional - Max 4)
+              </label>
+
+              <div className={styles.imageUploadSection}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/*"
+                  multiple
+                  className={styles.hiddenInput}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={styles.uploadButton}
+                  disabled={formData.images.length >= 4}
+                >
+                  📷{" "}
+                  {formData.images.length === 0
+                    ? "Add Images"
+                    : `Add More (${formData.images.length}/4)`}
+                </button>
+
+                {formData.images.length > 0 && (
+                  <div className={styles.imagePreviewGrid}>
+                    {formData.images.map((image) => (
+                      <div key={image.id} className={styles.imagePreview}>
+                        <img
+                          src={image.preview}
+                          alt="Preview"
+                          className={styles.previewImage}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(image.id)}
+                          className={styles.removeImageBtn}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {errors.images && (
+                <span className={styles.errorText}>{errors.images}</span>
+              )}
+            </div>
+
+            {/* Audio Recording */}
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Voice Note (Optional)</label>
+              <div className={styles.recordingContainer}>
+                <div className={styles.recordingButtonsDiv}>
+                  {isRecording ? (
+                    <button
+                      type="button"
+                      className={`${styles.RecordingButtons} ${styles.recording}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        stopRecording();
+                      }}
+                    >
+                      🎤 Stop Recording
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.RecordingButtons}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        startRecording();
+                      }}
+                    >
+                      🎤 {finalAudioBlob ? "Re-record" : "Start Recording"}
+                    </button>
+                  )}
+
+                  {finalAudioBlob && !isRecording && (
+                    <button
+                      type="button"
+                      className={styles.playButton}
+                      onClick={playAudio}
+                    >
+                      {isPlayingAudio ? "⏸️ Pause" : "▶️ Play"}
+                    </button>
+                  )}
+                </div>
+
+                {isRecording && (
+                  <div className={styles.recordingStatus}>Recording...</div>
+                )}
+
+                {finalAudioBlob && !isRecording && (
+                  <div className={styles.recordingStatus}>
+                    ✓ Voice note recorded
+                  </div>
+                )}
+              </div>
+              <audio ref={audioRef} style={{ display: "none" }} />
+            </div>
+
+            {/* Expertise */}
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Expertise Required *</label>
+              <div className={styles.checkboxGrid}>
+                {expertiseOptions.map((expertise) => (
+                  <div key={expertise} className={styles.checkboxItem}>
+                    <input
+                      type="checkbox"
+                      id={expertise}
+                      className={styles.checkbox}
+                      checked={formData.expertiseRequired.includes(expertise)}
+                      onChange={(e) =>
+                        handleExpertiseChange(expertise, e.target.checked)
+                      }
+                    />
+                    <label htmlFor={expertise} className={styles.checkboxLabel}>
+                      {expertise}
+                    </label>
+                  </div>
+                ))}
+              </div>
+              {errors.expertiseRequired && (
+                <span className={styles.errorText}>
+                  {errors.expertiseRequired}
+                </span>
+              )}
+            </div>
+
+            {/* City + Deadline */}
+            <div className={styles.formRow}>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>City *</label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  className={`${styles.formInput} ${
+                    errors.city ? styles.inputError : ""
+                  }`}
+                  placeholder="Enter city"
+                />
+                {errors.city && (
+                  <span className={styles.errorText}>{errors.city}</span>
+                )}
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Deadline *</label>
+                <input
+                  type="date"
+                  name="deadline"
+                  value={formData.deadline}
+                  onChange={handleInputChange}
+                  className={`${styles.formInput} ${
+                    errors.deadline ? styles.inputError : ""
+                  }`}
+                  min={new Date().toISOString().split("T")[0]}
+                />
+                {errors.deadline && (
+                  <span className={styles.errorText}>{errors.deadline}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Address */}
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Address *</label>
               <input
                 type="text"
-                name="city"
-                value={formData.city}
+                name="address"
+                value={formData.address}
                 onChange={handleInputChange}
                 className={`${styles.formInput} ${
-                  errors.city ? styles.inputError : ""
+                  errors.address ? styles.inputError : ""
                 }`}
-                placeholder="Enter city"
+                placeholder="Enter your address"
               />
-              {errors.city && (
-                <span className={styles.errorText}>{errors.city}</span>
+              {errors.address && (
+                <span className={styles.errorText}>{errors.address}</span>
               )}
             </div>
+
+            {/* Phone Number */}
             <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Deadline *</label>
+              <label className={styles.formLabel}>Phone Number *</label>
               <input
-                type="date"
-                name="deadline"
-                value={formData.deadline}
+                type="tel"
+                name="phoneNumber"
+                value={formData.phoneNumber}
                 onChange={handleInputChange}
                 className={`${styles.formInput} ${
-                  errors.deadline ? styles.inputError : ""
+                  errors.phoneNumber ? styles.inputError : ""
                 }`}
-                min={new Date().toISOString().split("T")[0]}
+                placeholder="Enter your phone number"
               />
-              {errors.deadline && (
-                <span className={styles.errorText}>{errors.deadline}</span>
+              {errors.phoneNumber && (
+                <span className={styles.errorText}>{errors.phoneNumber}</span>
               )}
             </div>
-          </div>
 
-          {/* Address */}
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Address *</label>
-            <input
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleInputChange}
-              className={`${styles.formInput} ${
-                errors.address ? styles.inputError : ""
-              }`}
-              placeholder="Enter your address"
-            />
-            {errors.address && (
-              <span className={styles.errorText}>{errors.address}</span>
-            )}
-          </div>
-
-          {/* Phone Number */}
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Phone Number *</label>
-            <input
-              type="tel"
-              name="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={handleInputChange}
-              className={`${styles.formInput} ${
-                errors.phoneNumber ? styles.inputError : ""
-              }`}
-              placeholder="Enter your phone number"
-            />
-            {errors.phoneNumber && (
-              <span className={styles.errorText}>{errors.phoneNumber}</span>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className={styles.formActions}>
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className={styles.btnPrimary}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Submitting..." : "Submit Order"}
-            </button>
-          </div>
-        </form>
+            {/* Actions */}
+            <div className={styles.formActions}>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={resetAndClose}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={styles.btnPrimary}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Submitting..." : "Submit Order"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+
+      {showLocationModal && (
+        <LocationPermissionModal
+          isOpen={showLocationModal}
+          onClose={() => setShowLocationModal(false)}
+          onPermissionGranted={handleLocationPermissionGranted}
+        />
+      )}
+
+      {showNegotiationModal && counterOfferData && (
+        <NegotiationModal
+          isOpen={showNegotiationModal}
+          onClose={() => setShowNegotiationModal(false)}
+          order={{
+            orderId: currentOrderId,
+            ...counterOfferData,
+            type: "given",
+          }}
+          onRespond={handleNegotiationResponse}
+          username={clientUsername}
+        />
+      )}
+    </>
   );
 }

@@ -23,8 +23,8 @@ export const metadata = {
 };
 
 export default async function RootLayout({ children }) {
-  const rt = await cookies().get("refreshToken");
-  const at = await cookies().get("accessToken");
+  const rt = cookies().get("refreshToken");
+  const at = cookies().get("accessToken");
   const { user } = await getUserData(at?.value);
   const plainUser = JSON.parse(JSON.stringify(user));
 

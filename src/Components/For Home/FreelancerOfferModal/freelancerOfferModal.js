@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import styles from "./freelancerOfferModal.module.css";
-import axios from "axios";
 import { useUserData } from "@/Context/context";
 import { useNegotiateOrder } from "@/Utils/Mutations/mutations";
+import { respondToOrderRealtime } from "@/Actions/Orders/orderSocketClient";
+import { getSocket } from "@/Socket_IO/socket";
 
 export default function FreelancerOfferModal({
   isOpen,
   onClose,
   order,
   refreshOrders,
+  isRealtime = false, // NEW: Flag to indicate if this is a real-time order
 }) {
   const [formData, setFormData] = useState({
     price: "",
@@ -18,7 +20,6 @@ export default function FreelancerOfferModal({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { mutate: negotiate } = useNegotiateOrder(refreshOrders);
-
   const { initialUserData } = useUserData();
 
   const handleInputChange = (e) => {
@@ -29,27 +30,47 @@ export default function FreelancerOfferModal({
     }));
   };
 
-  const handleSubmit = async (data) => {
-    // e.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      negotiate({
-        orderId: order.orderId,
-        action: "counter",
-        newPrice: parseFloat(data.get("price")),
-        expectedReachTime: data.get("arrivalDateTime"),
-        currentUsername: initialUserData?.username,
-        otherUsername: order.customerInfo.username,
-        currentUserType: "freelancer",
-      });
+      const price = parseFloat(formData.price);
+
+      if (isRealtime) {
+        // USE SOCKETS for real-time orders
+        console.log("💰 Sending counter offer via socket");
+
+        await respondToOrderRealtime(
+          order.orderId,
+          "counter",
+          price,
+          `Counter offer: ${price}`
+        );
+
+        console.log("✅ Counter offer sent via socket");
+      } else {
+        // USE DATABASE for offline orders
+        console.log("💰 Sending counter offer via database");
+
+        negotiate({
+          orderId: order.orderId,
+          action: "counter",
+          newPrice: price,
+          expectedReachTime: formData.arrivalDateTime,
+          currentUsername: initialUserData?.username,
+          otherUsername: order.customerInfo.username,
+          currentUserType: "freelancer",
+        });
+      }
+
+      setFormData({ price: "", arrivalDateTime: "" });
+      onClose();
     } catch (err) {
       console.error("Error countering offer:", err);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // setFormData({ price: "", arrivalDateTime: "" });
-    setIsSubmitting(false);
-    onClose();
   };
 
   const isFormValid = formData.price && formData.arrivalDateTime;
@@ -70,15 +91,15 @@ export default function FreelancerOfferModal({
         </div>
 
         <div className={styles.modalBody}>
-          {/* Order Summary */}
           <div className={styles.orderSummary}>
             <div className={styles.summaryTitle}>
               <span>📋</span>
               Order Summary
             </div>
             <div className={styles.summaryContent}>
-              <strong>{order.customerInfo.username}</strong> is requesting your
-              service with a budget of <strong>${order.priceToBePaid}</strong>
+              <strong>{order.customerInfo?.username || order.user}</strong> is
+              requesting your service with a budget of{" "}
+              <strong>${order.priceToBePaid}</strong>
               {order.deadline && (
                 <>
                   {" "}
@@ -92,8 +113,7 @@ export default function FreelancerOfferModal({
             </div>
           </div>
 
-          <form className={styles.form} action={handleSubmit}>
-            {/* Price */}
+          <form className={styles.form} onSubmit={handleSubmit}>
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>
                 <span>💵</span>
@@ -118,7 +138,6 @@ export default function FreelancerOfferModal({
               </div>
             </div>
 
-            {/* Arrival Date and Time */}
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>
                 <span>⏰</span>
@@ -138,7 +157,6 @@ export default function FreelancerOfferModal({
               </div>
             </div>
 
-            {/* Form Actions */}
             <div className={styles.formActions}>
               <button
                 type="button"

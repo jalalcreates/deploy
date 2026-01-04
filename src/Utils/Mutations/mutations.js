@@ -34,6 +34,7 @@ export function useCreateOrderMutation() {
 export function useNegotiateOrder(onRespond) {
   return useMutation({
     mutationFn: async (payload) => {
+      console.log({ payload });
       const res = await fetch("/api/orders/negotiation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,7 +45,6 @@ export function useNegotiateOrder(onRespond) {
     },
 
     onSuccess: ({ updatedOrders }) => {
-      console.log(updatedOrders);
       if (onRespond) {
         onRespond(updatedOrders);
       }

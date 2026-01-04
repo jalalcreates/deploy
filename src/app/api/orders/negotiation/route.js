@@ -1,3 +1,4 @@
+// app/api/orders/negotiation/route.js
 import { NextResponse } from "next/server";
 import { connectDb } from "@/Database/ConnectDb/connectdb";
 import User from "@/Database/Schemas/User/user";
@@ -23,11 +24,6 @@ export async function POST(req) {
       return NextResponse.json({ error: "Invalid input." }, { status: 400 });
     }
 
-    const currentField =
-      currentUserType === "client" ? "ordersGiven" : "pendingOrders";
-    const otherField =
-      currentUserType === "client" ? "pendingOrders" : "ordersGiven";
-
     const user = await User.findOne({ username: currentUsername });
     const otherUser = await User.findOne({ username: otherUsername });
 
@@ -38,13 +34,14 @@ export async function POST(req) {
       );
     }
 
-    // Update order in current user's array
+    // Find orders in both users' arrays
     const userOrder =
       user.pendingOrders.find((o) => o.orderId === orderId) ||
       user.ordersGiven.find((o) => o.orderId === orderId);
     const otherOrder =
       otherUser.ordersGiven.find((o) => o.orderId === orderId) ||
       otherUser.pendingOrders.find((o) => o.orderId === orderId);
+
     if (!userOrder || !otherOrder) {
       return NextResponse.json(
         { error: "Order data inconsistency." },
@@ -66,12 +63,14 @@ export async function POST(req) {
           { status: 400 }
         );
       }
-      currentUserType === "client"
-        ? (userOrder.status = "offer-given")
-        : (userOrder.status = "offer-received");
-      currentUserType === "client"
-        ? (otherOrder.status = "offer-received")
-        : (otherOrder.status = "offer-given");
+
+      // Set statuses based on who's countering
+      userOrder.status =
+        currentUserType === "client" ? "offer-given" : "offer-received";
+      otherOrder.status =
+        currentUserType === "client" ? "offer-received" : "offer-given";
+
+      // Update negotiation for both
       userOrder.negotiation.isNegotiating = true;
       otherOrder.negotiation.isNegotiating = true;
       userOrder.negotiation.offeredPrice = newPrice;
@@ -86,6 +85,7 @@ export async function POST(req) {
         { status: 400 }
       );
     }
+
     await user.save();
     await otherUser.save();
 
@@ -106,11 +106,10 @@ export async function POST(req) {
       { status: 200 }
     );
   } catch (error) {
-    // console.error("Negotiation API error:", error);
-    // console.log(error, "error in negotiation route");
-    // return NextResponse.json(
-    //   { error: "Internal server error." },
-    //   { status: 500 }
-    // );
+    console.error("Negotiation API error:", error);
+    return NextResponse.json(
+      { error: "Internal server error.", details: error.message },
+      { status: 500 }
+    );
   }
 }

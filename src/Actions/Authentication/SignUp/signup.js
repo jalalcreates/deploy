@@ -7,8 +7,9 @@ import bcrypt from "bcrypt";
 import { createTokens } from "@/Sessions/sessions";
 
 export async function signUp(formData) {
-  await connectDb();
   try {
+    const isConnected = await connectDb();
+    console.log({ isConnected });
     const validationResult = validateUser.safeParse({
       username: formData.get("username"),
       password: formData.get("password"),

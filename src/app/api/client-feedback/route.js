@@ -41,7 +41,6 @@ export async function POST(req) {
     }
 
     const validatedData = validationResult.data;
-    clg("Validated data:", validatedData);
     const feedbackImages = formData.getAll("feedbackImages");
     const audioFeedback = formData.get("audioFeedback");
     console.log({ feedbackImages, audioFeedback });

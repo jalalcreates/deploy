@@ -4,6 +4,10 @@ import axios from "axios";
 
 export async function middleware(request) {
   console.log("middleware...");
+
+  const rt = request.cookies.get("refreshToken");
+  const at = request.cookies.get("accessToken");
+
   const url = request.nextUrl.clone();
   const isLoginPath = url.pathname === "/login";
   // Skip static files
@@ -14,16 +18,21 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  const rt = await cookies().get("refreshToken");
-  const at = await cookies().get("accessToken");
-
   let fullUrl = `${url.protocol}//${url.host}/api/renew-token`;
   if (rt && !at) {
-    const response = await axios.post(fullUrl, { refreshToken: rt });
-    const result = response.data;
+    const response = await fetch(fullUrl, {
+      method: "POST",
+      body: JSON.stringify({ refreshToken: rt }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const data = await response.json();
+    // console.log({ data });
     const res = NextResponse.next();
-    if (result.success) {
-      res.cookies.set("accessToken", result.newAccessToken, {
+    if (data?.success) {
+      res.cookies.set("accessToken", data.newAccessToken, {
         httpOnly: true,
         secure: true,
         sameSite: "strict",

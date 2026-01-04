@@ -18,7 +18,6 @@ export async function POST(request) {
       (token) => token === refreshToken.value
     );
 
-    //checking the refresh token in database
     if (!existingToken) return NextResponse.json({ success: false });
 
     const payload1 = await verifyToken(existingToken);

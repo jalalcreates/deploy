@@ -15,7 +15,7 @@ export default function ClientArrivalConfirmationModal({
   const handleConfirm = async () => {
     setIsProcessing(true);
     try {
-      await onConfirmArrival(order.id || order._id);
+      await onConfirmArrival(order.orderId);
       onClose();
     } catch (error) {
       console.error("Error confirming arrival:", error);
@@ -27,7 +27,7 @@ export default function ClientArrivalConfirmationModal({
   const handleReject = async () => {
     setIsProcessing(true);
     try {
-      await onRejectArrival(order.id || order._id);
+      await onRejectArrival(order.orderId);
       onClose();
     } catch (error) {
       console.error("Error rejecting arrival:", error);
