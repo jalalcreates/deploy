@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { connectDb } from "@/Database/ConnectDb/connectdb";
 import ServiceRequests from "@/Database/Schemas/ServiceRequests/serviceRequests";
+import { sanitizeMongooseDocs } from "@/Utils/sanitize";
 
 const schema = z.object({
   city: z.string().min(1, "City is required"),
@@ -17,7 +18,10 @@ export async function POST(req) {
       city: validated.city,
     }).sort({ createdAt: -1 });
 
-    return NextResponse.json({ success: true, requests });
+    // Sanitize Mongoose documents before returning
+    const sanitizedRequests = sanitizeMongooseDocs(requests);
+
+    return NextResponse.json({ success: true, requests: sanitizedRequests });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

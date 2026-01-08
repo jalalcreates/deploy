@@ -14,6 +14,7 @@ export async function POST(req) {
       currentUserType,
       currentUsername,
       otherUsername,
+      expectedReachTime,
     } = await req.json();
 
     if (
@@ -79,6 +80,12 @@ export async function POST(req) {
         currentUserType === "client" ? "freelancer" : "client";
       otherOrder.negotiation.currentOfferTo =
         currentUserType === "client" ? "freelancer" : "client";
+
+      // Update expectedReachTime if provided
+      if (expectedReachTime) {
+        userOrder.expectedReachTime = expectedReachTime;
+        otherOrder.expectedReachTime = expectedReachTime;
+      }
     } else {
       return NextResponse.json(
         { error: "Unsupported action." },

@@ -27,24 +27,23 @@ export default function OrderDetailModal({
           {/* User Section */}
           <div className={styles.userSection}>
             <div className={styles.userAvatar}>
-              {order.avatar ? (
+              {(order?.type === "given" ? order?.freelancerInfo?.profilePicture : order?.customerInfo?.profilePicture) ? (
                 <img
                   src={
                     order?.type === "given"
                       ? order?.freelancerInfo?.profilePicture
-                      : order?.customerInfo?.profilePicture ||
-                        "/placeholder.svg"
+                      : order?.customerInfo?.profilePicture
                   }
                   alt={order.user}
                 />
               ) : (
                 <div className={styles.userAvatarFallback}>
                   {order?.type === "given"
-                    ? order?.freelancerInfo?.username
+                    ? (order?.freelancerInfo?.username || order?.user || "F")
                         .split(" ")
                         .map((n) => n[0])
                         .join("")
-                    : order?.customerInfo?.username
+                    : (order?.customerInfo?.username || order?.user || "C")
                         .split(" ")
                         .map((n) => n[0])
                         .join("")}
@@ -121,16 +120,18 @@ export default function OrderDetailModal({
           )}
 
           {/* Action Buttons for Freelancer */}
-          {isFreelancerView && order.status === "pending" && (
-            <div className={styles.actionButtons}>
-              <button className={styles.acceptBtn} onClick={onAcceptOrder}>
-                ✅ Accept Order
-              </button>
-              <button className={styles.offerBtn} onClick={onGiveOffer}>
-                💰 Give Your Offer
-              </button>
-            </div>
-          )}
+          {isFreelancerView &&
+            order.status === "pending" &&
+            !order.negotiation?.isNegotiating && (
+              <div className={styles.actionButtons}>
+                <button className={styles.acceptBtn} onClick={onAcceptOrder}>
+                  ✅ Accept Order
+                </button>
+                <button className={styles.offerBtn} onClick={onGiveOffer}>
+                  💰 Give Your Offer
+                </button>
+              </div>
+            )}
         </div>
       </div>
     </div>

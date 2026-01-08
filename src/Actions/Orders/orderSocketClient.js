@@ -53,11 +53,11 @@ export function sendOrderRealtime(freelancerUsername, orderData) {
 
     const handler = (response) => {
       console.log({ response });
-      // if (response.orderId === orderData.orderId) {
-      clearTimeout(timeoutId);
-      // socket.off("order-status", handler);
-      resolve(response);
-      // }
+      if (response.orderId === orderData.orderId) {
+        clearTimeout(timeoutId);
+        socket.off("order-status", handler);
+        resolve(response);
+      }
     };
 
     socket.on("order-status", (data) => handler(data));
@@ -99,11 +99,11 @@ export function respondToOrderRealtime(
   orderId,
   response,
   newPrice = null,
-  message = ""
+  message = "",
+  orderData = null // NEW: Full order data for reconstruction
 ) {
   return new Promise((resolve, reject) => {
     const socket = getSocket();
-
     if (!socket || !socket.connected) {
       reject(new Error("Socket not connected"));
       return;
@@ -141,6 +141,8 @@ export function respondToOrderRealtime(
       response, // "accept" | "reject" | "counter"
       newPrice,
       message,
+      orderData, // Include full order data for server to reconstruct if needed
+      expectedReachTime: orderData?.expectedReachTime, // Include expectedReachTime
     });
   });
 }
@@ -152,8 +154,8 @@ export function listenForOrderAccepted(callback) {
   const socket = getSocket();
   if (!socket) return () => {};
 
-  socket.on("order-accepted", callback);
-  return () => socket.off("order-accepted", callback);
+  socket.on("order-accepted-realtime", callback);
+  return () => socket.off("order-accepted-realtime", callback);
 }
 
 // ============================================
@@ -161,10 +163,10 @@ export function listenForOrderAccepted(callback) {
 // ============================================
 export function listenForOrderRejected(callback) {
   const socket = getSocket();
-  if (!socket) return () => {};
+  if (!socket || !socket.connected) return () => {};
 
-  socket.on("order-rejected", callback);
-  return () => socket.off("order-rejected", callback);
+  socket.on("order-rejected-realtime", callback);
+  return () => socket.off("order-rejected-realtime", callback);
 }
 
 // ============================================
@@ -172,10 +174,11 @@ export function listenForOrderRejected(callback) {
 // ============================================
 export function listenForCounterOffer(callback) {
   const socket = getSocket();
-  if (!socket) return () => {};
+  if (!socket || !socket.connected) return () => {};
 
-  socket.on("order-counter-offer", callback);
-  return () => socket.off("order-counter-offer", callback);
+  socket.on("counter-offer-realtime", callback);
+  console.log("Reached counter off listener");
+  return () => socket.off("counter-offer-realtime", callback);
 }
 
 // ============================================

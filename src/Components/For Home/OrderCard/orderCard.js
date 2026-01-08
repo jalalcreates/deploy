@@ -177,7 +177,7 @@ export default function OrderCard({
                 {order.status === "in-progress" && (
                   <div className={styles.orderMeta}>
                     <span className={styles.onWayText}>
-                      {order.isReached?.value ? "Arrived" : "On the way"}
+                      {order.isReached?.confirmed ? "Service in Progress" : order.isReached?.value ? "Freelancer Arrived" : "On the way"}
                     </span>
                     <span className={styles.arrivalTime}>
                       {order.expectedReachTime
@@ -186,15 +186,17 @@ export default function OrderCard({
                           ).toLocaleTimeString()}`
                         : "ETA: TBD"}
                     </span>
-                    <button
-                      className={styles.seeFreelancerBtn}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSeeFreelancer();
-                      }}
-                    >
-                      🗺️ Track Live
-                    </button>
+                    {!order.isReached?.confirmed && (
+                      <button
+                        className={styles.seeFreelancerBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSeeFreelancer();
+                        }}
+                      >
+                        🗺️ Track Live
+                      </button>
+                    )}
                   </div>
                 )}
                 {order.negotiation?.isNegotiating && (

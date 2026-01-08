@@ -3,26 +3,41 @@
 import { useState } from "react";
 import styles from "./taskbar.module.css";
 import RequestsModal from "@/Components/For Home/RequestsModal/requestsModal";
-// import { useUserData } from "@/Context/context";
 import OffersModal from "../For Home/OffersModal/offersModal";
 import Link from "next/link";
+import { useNotifications } from "@/hooks/useNotifications";
 
 export default function Taskbar({ userData }) {
   const [activeTab, setActiveTab] = useState("home");
   const [isRequestsModalOpen, setIsRequestsModalOpen] = useState(false);
   const [isOffersModalOpen, setIsOffersModalOpen] = useState(false);
-  // const { initialUserData } = useUserData() || {};
+
+  // Notification system
+  const {
+    requestsCount,
+    offersCount,
+    showRequestsBadge,
+    showOffersBadge,
+    markRequestsAsSeen,
+    markOffersAsSeen,
+  } = useNotifications(userData?.username, userData?.currentCity);
+
   const handleRequestsClick = () => {
     setActiveTab("requests");
     setIsRequestsModalOpen(true);
+    markRequestsAsSeen(); // Clear notifications when opening requests modal
   };
+
   const handleOffersClick = () => {
     setActiveTab("offers");
     setIsOffersModalOpen(true);
+    markOffersAsSeen(); // Clear notifications when opening offers modal
   };
+
   const handleCloseRequestsModal = () => {
     setIsRequestsModalOpen(false);
   };
+
   const handleCloseOffersModal = () => {
     setIsOffersModalOpen(false);
   };
@@ -58,6 +73,11 @@ export default function Taskbar({ userData }) {
               onClick={handleRequestsClick}
             >
               Requests
+              {showRequestsBadge && (
+                <div className={styles.notificationBadge}>
+                  {requestsCount > 99 ? "99+" : requestsCount}
+                </div>
+              )}
             </button>
             <button
               className={`${styles.taskbarBtn} ${
@@ -66,7 +86,11 @@ export default function Taskbar({ userData }) {
               onClick={handleOffersClick}
             >
               Offers
-              <div className={styles.notificationDot}></div>
+              {showOffersBadge && (
+                <div className={styles.notificationBadge}>
+                  {offersCount > 99 ? "99+" : offersCount}
+                </div>
+              )}
             </button>
           </div>
         </div>

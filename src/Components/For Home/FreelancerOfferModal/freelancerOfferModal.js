@@ -14,6 +14,8 @@ export default function FreelancerOfferModal({
   refreshOrders,
   isRealtime = false, // NEW: Flag to indicate if this is a real-time order
 }) {
+  const socket = getSocket();
+
   const [formData, setFormData] = useState({
     price: "",
     arrivalDateTime: "",
@@ -37,20 +39,8 @@ export default function FreelancerOfferModal({
     try {
       const price = parseFloat(formData.price);
 
-      if (isRealtime) {
-        // USE SOCKETS for real-time orders
-        console.log("💰 Sending counter offer via socket");
-
-        await respondToOrderRealtime(
-          order.orderId,
-          "counter",
-          price,
-          `Counter offer: ${price}`
-        );
-
-        console.log("✅ Counter offer sent via socket");
-      } else {
-        // USE DATABASE for offline orders
+      if (!socket) {
+        console.error("❌ Socket not available");
         console.log("💰 Sending counter offer via database");
 
         negotiate({
@@ -62,7 +52,26 @@ export default function FreelancerOfferModal({
           otherUsername: order.customerInfo.username,
           currentUserType: "freelancer",
         });
+        return;
       }
+      // USE SOCKETS for real-time orders
+      console.log("💰 Sending counter offer via socket");
+
+      // Create order data with expectedReachTime
+      const orderDataWithTime = {
+        ...order,
+        expectedReachTime: formData.arrivalDateTime,
+      };
+
+      await respondToOrderRealtime(
+        order.orderId,
+        "counter",
+        price,
+        `Counter offer: ${price}`,
+        orderDataWithTime // Pass full order data with expectedReachTime
+      );
+
+      console.log("✅ Counter offer sent via socket");
 
       setFormData({ price: "", arrivalDateTime: "" });
       onClose();

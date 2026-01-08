@@ -6,7 +6,7 @@ import { useUserData } from "@/Context/context";
 import AudioRecorder from "@/Utils/Audio/AudioRecorder";
 import { serviceRequestFormSchema } from "@/Zod/ServiceRequest/schema";
 import axios from "axios";
-import { socket } from "@/Socket_IO/socket";
+import { broadcastServiceRequest } from "@/Actions/ServiceRequests/serviceRequestSocketClient";
 
 export default function ServiceRequest({ closeForm }) {
   const { initialUserData } = useUserData();
@@ -170,7 +170,21 @@ export default function ServiceRequest({ closeForm }) {
       );
 
       console.log(response.data);
-      //socket io goes here for notifications to freelancers in the city.
+
+      // Broadcast service request in real-time to freelancers in the city
+      if (response.data.success && response.data.serviceRequest) {
+        try {
+          await broadcastServiceRequest(
+            response.data.serviceRequest,
+            formData.city
+          );
+          console.log("✅ Service request broadcasted successfully");
+        } catch (broadcastError) {
+          console.error("❌ Failed to broadcast service request:", broadcastError);
+          // Don't fail the whole operation if broadcast fails
+          // The request is still saved in the database
+        }
+      }
 
       // Reset form on success
       setFormData({
@@ -200,16 +214,16 @@ export default function ServiceRequest({ closeForm }) {
   }
 
   const expertiseOptions = [
-    "Web Development",
-    "Mobile Development",
-    "UI/UX Design",
-    "Data Analysis",
-    "Digital Marketing",
-    "Content Writing",
-    "Graphic Design",
-    "SEO Optimization",
-    "Database Management",
-    "Cloud Services",
+    "Plumbing",
+    "Electrical Work",
+    "Carpentry",
+    "Painting",
+    "HVAC Repair",
+    "Appliance Repair",
+    "Cleaning Services",
+    "Gardening",
+    "Pest Control",
+    "General Handyman",
   ];
 
   const currencies = [

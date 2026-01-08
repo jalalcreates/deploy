@@ -74,7 +74,7 @@ export async function POST(req) {
         time: reachedTime,
         confirmed: false, // Client needs to confirm
       };
-      // freelancerOrder.status = "in-progress";
+      // Note: Status remains "accepted" until client confirms arrival
 
       // Update client's order (mirror the changes)
       clientOrder.isReached = {
@@ -82,7 +82,7 @@ export async function POST(req) {
         time: reachedTime,
         confirmed: false,
       };
-      // clientOrder.status = "in-progress";
+      // Note: Status remains "accepted" until client confirms arrival
     } else if (action === "cancel") {
       const cancelTime = new Date();
 

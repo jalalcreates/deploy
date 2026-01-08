@@ -4,6 +4,12 @@ import { useState } from "react";
 import styles from "./offerServiceModal.module.css";
 import axios from "axios";
 import { useUserData } from "@/Context/context";
+import {
+  submitOfferRealtime,
+  listenForOfferAccepted,
+  listenForOfferDeclined,
+} from "@/Actions/ServiceRequests/serviceRequestSocketClient";
+import { saveOfferToDatabase } from "@/Actions/ServiceRequests/serviceRequestFallbackHandler";
 
 export default function OfferServiceModal({
   isOpen,
@@ -31,22 +37,50 @@ export default function OfferServiceModal({
     e.preventDefault();
     setIsSubmitting(true);
 
+    const offerData = {
+      freelancerInfo: {
+        username: initialUserData.username,
+        profilePicture: initialUserData.profilePicture,
+        satisfiedCustomers: initialUserData.customers?.satisfiedCustomers || 0,
+        totalOrdersRecieved: initialUserData.totalOrdersRecieved || 0,
+        expertise: initialUserData.expertise || [],
+        averageStars: initialUserData.averageStars || 0,
+        reviews: initialUserData.reviews || [],
+      },
+      offeredPrice: parseFloat(formData.offerPrice) || request.willingPrice,
+      reachTime: formData.reachTime,
+      accepted: false,
+    };
+
     try {
-      await axios.post("/api/offer-service", {
+      // First save to database (for persistence)
+      const dbResponse = await axios.post("/api/offer-service", {
         requestId: request.requestId,
-        offeredPrice: formData.offerPrice || request.budget,
-        reachTime: formData.reachTime,
-        freelancerInfo: {
-          username: initialUserData.username,
-          profilePicture: initialUserData.profilePicture,
-          satisfiedCustomers: initialUserData.customers.satisfiedCustomers || 0,
-          totalOrdersRecieved:
-            initialUserData.customers.totalOrdersRecieved || 0,
-          expertise: initialUserData.expertise || [],
-          averageStars: initialUserData.averageStars || 0,
-          reviews: initialUserData.reviews || [],
-        },
+        ...offerData,
       });
+
+      if (!dbResponse.data.success) {
+        throw new Error(dbResponse.data.error || "Failed to save offer");
+      }
+
+      // Then try real-time notification
+      try {
+        const rtResponse = await submitOfferRealtime(
+          request.requestId,
+          request.customerInfo?.username,
+          offerData,
+          request
+        );
+
+        if (rtResponse.requiresDbFallback) {
+          console.log("Requester offline - offer saved to DB only");
+        } else {
+          console.log("✅ Offer submitted in real-time");
+        }
+      } catch (rtError) {
+        console.error("Real-time offer submission failed:", rtError);
+        // Continue anyway since DB save succeeded
+      }
 
       setShowSuccess(true);
       setTimeout(() => {
@@ -58,6 +92,11 @@ export default function OfferServiceModal({
       }, 1500);
     } catch (error) {
       console.error("Failed to submit offer:", error);
+      alert(
+        error.response?.data?.error ||
+          error.message ||
+          "Failed to submit offer"
+      );
       setIsSubmitting(false);
     }
   };

@@ -5,6 +5,7 @@ import { serviceCompletionSchema } from "@/Zod/PopUp Modals/schema";
 import AudioRecorder from "@/Utils/Audio/AudioRecorder";
 import styles from "./freelancerServiceCompleteModal.module.css";
 import axios from "axios";
+import { getSocket } from "@/Socket_IO/socket";
 
 export default function FreelancerServiceModal({
   isOpen,
@@ -101,9 +102,47 @@ export default function FreelancerServiceModal({
     }
 
     try {
-      const submitFormData = new FormData();
+      const socket = getSocket();
 
-      // Append basic data
+      // First, prepare proof picture names/ids
+      const proofPictureNames = formData.proofImages.map((img, idx) =>
+        `proof_${order.orderId}_${idx}_${Date.now()}.jpg`
+      );
+
+      // Check if socket is available for real-time
+      if (socket && socket.connected) {
+        console.log("✅ Sending completion via real-time socket");
+
+        // Emit real-time completion event
+        socket.emit("mark-complete-realtime", {
+          orderId: order.orderId,
+          proofPictures: proofPictureNames,
+          description: formData.notes || "Service completed",
+          freelancerUsername,
+          orderData: order, // Pass full order data for reconstruction
+        });
+
+        // Wait for server confirmation
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            socket.off("completion-notification-sent");
+            reject(new Error("Timeout waiting for completion confirmation"));
+          }, 10000);
+
+          socket.on("completion-notification-sent", (data) => {
+            if (data.orderId === order.orderId) {
+              clearTimeout(timeout);
+              socket.off("completion-notification-sent");
+              resolve(data);
+            }
+          });
+        });
+
+        console.log("✅ Real-time completion confirmed");
+      }
+
+      // Save to database (for persistence)
+      const submitFormData = new FormData();
       submitFormData.append("orderId", order.orderId);
       submitFormData.append("freelancerUsername", freelancerUsername);
       submitFormData.append("clientUsername", clientUsername);
@@ -118,6 +157,7 @@ export default function FreelancerServiceModal({
       if (finalAudioBlob) {
         submitFormData.append("audioRecording", finalAudioBlob);
       }
+
       const response = await axios.post(
         "/api/service-completed",
         submitFormData,
@@ -125,16 +165,14 @@ export default function FreelancerServiceModal({
           headers: {
             "Content-Type": "multipart/form-data",
           },
-          timeout: 60000, // 60 second timeout for file uploads
+          timeout: 60000,
         }
       );
 
       const { data } = response;
-
-      console.log("Service completion successful:", data.message);
+      console.log("💾 Service completion persisted to database:", data.message);
 
       refreshOrders(data?.updatedOrders || []);
-
       onClose();
     } catch (error) {
       if (error.errors) {

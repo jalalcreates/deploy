@@ -33,7 +33,8 @@ export async function initializeSocket() {
     }
 
     // Create socket connection with auth token
-    socket = io("http://localhost:4000", {
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
+    socket = io(socketUrl, {
       auth: {
         token: data.token,
       },
@@ -41,7 +42,8 @@ export async function initializeSocket() {
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 1,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 10,
     });
 
     // Connection successful

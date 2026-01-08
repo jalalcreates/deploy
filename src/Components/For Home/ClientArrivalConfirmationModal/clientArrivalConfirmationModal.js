@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import styles from "./clientArrivalConfirmationModal.module.css";
+import { getSocket } from "@/Socket_IO/socket";
+import { confirmArrival } from "@/Actions/Orders/orders";
 
 export default function ClientArrivalConfirmationModal({
   isOpen,
@@ -12,15 +14,54 @@ export default function ClientArrivalConfirmationModal({
 }) {
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleConfirm = async () => {
-    setIsProcessing(true);
+  const handleConfirm = async (confirmed) => {
     try {
-      await onConfirmArrival(order.orderId);
+      const socket = getSocket();
+
+      if (socket && socket.connected) {
+        // ===== USE SOCKETS =====
+        console.log(`✅ Confirming arrival via socket: ${confirmed}`);
+
+        socket.emit("confirm-arrival-realtime", {
+          orderId: order.orderId,
+          confirmed,
+          orderData: order, // Pass full order data for reconstruction
+        });
+
+        // Wait for confirmation
+        await new Promise((resolve) => {
+          const handler = (data) => {
+            if (data.orderId === order.orderId) {
+              socket.off("confirmation-sent", handler);
+              resolve();
+            }
+          };
+          socket.on("confirmation-sent", handler);
+
+          setTimeout(() => {
+            socket.off("confirmation-sent", handler);
+            resolve();
+          }, 5000);
+        });
+
+        console.log("✅ Arrival confirmation sent via socket");
+      } else {
+        // ===== USE DATABASE =====
+        console.log(`✅ Confirming arrival via database: ${confirmed}`);
+
+        const formData = new FormData();
+        formData.append("orderId", order.orderId);
+        formData.append("clientUsername", order.customerInfo?.username);
+        formData.append("confirmed", confirmed.toString());
+
+        await confirmArrival(formData);
+      }
+
+      onConfirmArrival(order.orderId);
       onClose();
     } catch (error) {
       console.error("Error confirming arrival:", error);
-    } finally {
-      setIsProcessing(false);
+      alert("Failed to confirm arrival. Please try again.");
     }
   };
 
@@ -103,7 +144,7 @@ export default function ClientArrivalConfirmationModal({
           </button>
           <button
             className={styles.confirmBtn}
-            onClick={handleConfirm}
+            onClick={() => handleConfirm(true)}
             disabled={isProcessing}
           >
             {isProcessing ? "Processing..." : "✅ Confirm Arrival"}

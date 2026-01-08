@@ -7,6 +7,7 @@ export default function LocationPermissionModal({
   isOpen,
   onClose,
   onPermissionGranted,
+  order, // NEW: Receive order as prop
 }) {
   const [isRequesting, setIsRequesting] = useState(false);
 
@@ -14,22 +15,60 @@ export default function LocationPermissionModal({
     setIsRequesting(true);
 
     try {
+      console.log("📍 Requesting location permission...");
+
+      // Check if geolocation is available
+      if (!navigator.geolocation) {
+        throw new Error("Geolocation is not supported by your browser");
+      }
+
       // Request geolocation permission
       const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        });
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            console.log("✅ Location permission granted:", pos.coords);
+            resolve(pos);
+          },
+          (err) => {
+            console.error("❌ Location permission error:", err);
+            reject(err);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0,
+          }
+        );
       });
 
-      // Permission granted
-      onPermissionGranted(true);
-      console.log("Location granted:", position.coords);
+      const { latitude, longitude } = position.coords;
+      console.log("📍 Coordinates obtained:", { latitude, longitude });
+
+      // Import socket dynamically
+      const { getSocket } = await import("@/Socket_IO/socket");
+      const socket = getSocket();
+
+      if (socket && socket.connected && order) {
+        // Emit location via socket
+        socket.emit("share-location-realtime", {
+          orderId: order.orderId,
+          latitude: latitude.toString(),
+          longitude: longitude.toString(),
+        });
+
+        console.log("✅ Location shared via socket for order:", order.orderId);
+      } else {
+        console.warn("⚠️ Socket not connected, will save to database via parent");
+      }
+
+      // Permission granted - pass coordinates back
+      onPermissionGranted(true, { latitude, longitude });
+      console.log("✅ Location permission callback invoked");
     } catch (error) {
       // Permission denied or error
-      console.error("Location permission denied:", error);
-      onPermissionGranted(false);
+      console.error("❌ Location permission error:", error);
+      alert(`Location access failed: ${error.message || "Permission denied"}. Please enable location access in your browser settings.`);
+      onPermissionGranted(false, null);
     } finally {
       setIsRequesting(false);
     }

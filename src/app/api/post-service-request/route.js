@@ -7,6 +7,7 @@ import { saveAudio, isValidAudioFile } from "@/Actions/Audio/audio";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
+import { sanitizeMongooseDoc } from "@/Utils/sanitize";
 
 export async function POST(req) {
   try {
@@ -130,18 +131,18 @@ export async function POST(req) {
       ...validatedData,
       problemAudioId: audioId,
       phoneNumber: validatedData.phoneNumber,
-      serviceImages: savedImagePaths, // Add this field to your schema
+      serviceImages: savedImagePaths,
       requestId: uuidv4(),
       createdAt: new Date(),
     });
 
+    // Sanitize Mongoose document before returning
+    const sanitizedRequest = sanitizeMongooseDoc(serviceRequest);
+
+    // Return complete service request data for real-time broadcasting
     return NextResponse.json({
       success: true,
-      serviceRequest: {
-        id: serviceRequest._id,
-        requestId: serviceRequest.requestId,
-        createdAt: serviceRequest.createdAt,
-      },
+      serviceRequest: sanitizedRequest,
     });
   } catch (err) {
     if (err instanceof ZodError) {

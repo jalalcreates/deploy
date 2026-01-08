@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getSocket } from "@/Socket_IO/socket";
 import styles from "./freelancerReminderModal.module.css";
 
 // Add this after the imports and before the component function
@@ -121,15 +122,49 @@ export default function FreelancerReminderModal({
 
   const handleReached = async () => {
     try {
-      const result = await handleFreelancerAction(
-        order.orderId || order._id,
-        "reached",
-        freelancerUsername,
-        order.customerInfo?.username
-      );
+      const socket = getSocket();
 
-      console.log("Successfully marked as reached:", result);
-      onReached(order.orderId || order._id);
+      if (socket && socket.connected) {
+        // ===== USE SOCKETS =====
+        console.log("🚗 Marking reached via socket");
+
+        socket.emit("freelancer-reached-realtime", {
+          orderId: order.orderId,
+          orderData: order, // Pass full order data for reconstruction
+        });
+
+        // Wait for confirmation
+        await new Promise((resolve) => {
+          const handler = (data) => {
+            if (data.orderId === order.orderId) {
+              socket.off("reached-notification-sent", handler);
+              resolve();
+            }
+          };
+          socket.on("reached-notification-sent", handler);
+
+          setTimeout(() => {
+            socket.off("reached-notification-sent", handler);
+            resolve();
+          }, 5000);
+        });
+
+        console.log("✅ Reached notification sent via socket");
+      } else {
+        // ===== USE DATABASE =====
+        console.log("🚗 Marking reached via database");
+
+        const result = await handleFreelancerAction(
+          order.orderId,
+          "reached",
+          freelancerUsername,
+          order.customerInfo?.username
+        );
+
+        console.log("Successfully marked as reached:", result);
+      }
+
+      onReached(order.orderId);
     } catch (error) {
       console.error("Failed to mark as reached:", error);
       alert("Failed to update status. Please try again.");
@@ -147,7 +182,7 @@ export default function FreelancerReminderModal({
 
     try {
       const result = await handleFreelancerAction(
-        order.orderId || order._id,
+        order.orderId,
         "cancel",
         freelancerUsername,
         order.customerInfo?.username

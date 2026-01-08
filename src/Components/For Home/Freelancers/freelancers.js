@@ -86,6 +86,7 @@ export default function FreelancersInCity() {
         onClose={() => setIsModalOpen(false)}
         freelancer={selectedFreelancer}
         clientUsername={user?.username}
+        clientProfilePicture={user?.profilePicture}
       />
     </div>
   );

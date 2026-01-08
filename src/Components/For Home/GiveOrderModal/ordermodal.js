@@ -9,27 +9,19 @@ import { v4 as uuidv4 } from "uuid";
 import {
   checkFreelancerOnline,
   sendOrderRealtime,
-  listenForOrderAccepted,
-  listenForOrderRejected,
-  listenForCounterOffer,
-  listenForSaveToDatabase,
 } from "@/Actions/Orders/orderSocketClient";
-import NegotiationModal from "../NegotiationModal/negotiationModal";
-import LocationPermissionModal from "../LocationPermissionModal/locationPermissionModal";
 
 export default function OrderModal({
   isOpen,
   onClose,
   freelancer,
   clientUsername,
+  clientProfilePicture,
 }) {
   const { startRecording, stopRecording, isRecording, finalAudioBlob } =
     AudioRecorder();
   const [orderMode, setOrderMode] = useState(null);
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const [showNegotiationModal, setShowNegotiationModal] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState(null);
-  const [counterOfferData, setCounterOfferData] = useState(null);
   const [formData, setFormData] = useState({
     budget: "",
     currency: "",
@@ -68,59 +60,8 @@ export default function OrderModal({
     { code: "PKR", name: "PKR - Pakistani Rupee" },
   ];
 
-  // ===== SOCKET EVENT LISTENERS =====
-  useEffect(() => {
-    if (orderMode !== "realtime") return;
-
-    console.log("📡 Setting up real-time listeners for order:", currentOrderId);
-
-    // SCENARIO 1: Freelancer ACCEPTS order
-    const cleanupAccepted = listenForOrderAccepted((data) => {
-      console.log("🎉 Order accepted:", data);
-      alert(
-        `🎉 ${data.freelancerUsername} accepted! Final price: ${
-          data.finalPrice
-        } ${data.currency || formData.currency}`
-      );
-
-      // Show location modal and save to database
-      setShowLocationModal(true);
-      setShowNegotiationModal(false);
-
-      // Save accepted order to database
-      saveAcceptedOrderToDatabase(data);
-    });
-
-    // SCENARIO 2: Freelancer REJECTS order
-    const cleanupRejected = listenForOrderRejected((data) => {
-      console.log("❌ Order rejected:", data);
-      alert(`❌ ${data.freelancerUsername} declined your order.`);
-      resetAndClose();
-    });
-
-    // SCENARIO 3: Freelancer sends COUNTER OFFER
-    const cleanupCounter = listenForCounterOffer((data) => {
-      console.log("💰 Counter offer received:", data);
-      setCounterOfferData(data);
-      setShowNegotiationModal(true);
-    });
-
-    // Save to database (when freelancer goes offline)
-    const cleanupSave = listenForSaveToDatabase(async (data) => {
-      console.log("💾 Saving to database due to:", data.reason);
-      await saveToDatabase();
-      alert("Freelancer went offline. Order saved to database.");
-      resetAndClose();
-    });
-
-    return () => {
-      console.log("🔇 Cleaning up socket listeners");
-      cleanupAccepted();
-      cleanupRejected();
-      cleanupCounter();
-      cleanupSave();
-    };
-  }, [orderMode, currentOrderId]);
+  // ===== ALL REAL-TIME EVENT LISTENERS CENTRALIZED IN ordersSidebar.js =====
+  // No listeners here - ordersSidebar.js handles all real-time events
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -257,19 +198,6 @@ export default function OrderModal({
     }
   };
 
-  // ===== SAVE ACCEPTED ORDER TO DATABASE =====
-  const saveAcceptedOrderToDatabase = async (acceptedData) => {
-    try {
-      console.log("💾 Saving accepted order to database...");
-      await saveToDatabase();
-      console.log("✅ Accepted order saved to database");
-    } catch (error) {
-      console.error("❌ Failed to save accepted order:", error);
-      alert(
-        "Warning: Order accepted but failed to save to database. Please contact support."
-      );
-    }
-  };
 
   // ===== MAIN SUBMIT HANDLER =====
   const handleSubmit = async (e) => {
@@ -300,6 +228,8 @@ export default function OrderModal({
         phoneNumber: formData.phoneNumber,
         images: formData.images?.map((img) => img.file.name) || [],
         audioId: finalAudioBlob ? `audio-${orderId}` : null,
+        clientProfilePicture: clientProfilePicture || null,
+        freelancerProfilePicture: freelancer?.profilePicture || null,
       };
 
       console.log(`🔍 Checking if ${freelancer.username} is online...`);
@@ -318,7 +248,7 @@ export default function OrderModal({
 
           if (response.success && response.isOnline) {
             console.log(`✅ Order sent to ${freelancer.username} in real-time`);
-            // DON'T close modal yet - wait for socket response
+            resetAndClose();
           } else {
             console.log(
               "❌ Freelancer went offline, using database fallback..."
@@ -330,7 +260,6 @@ export default function OrderModal({
           console.error("Socket error:", socketError);
           console.log("Using database fallback due to socket error");
           await saveToDatabase();
-          alert("Connection error. Order saved to database.");
           resetAndClose();
         }
       } else {
@@ -340,7 +269,6 @@ export default function OrderModal({
         );
         setOrderMode("database");
         await saveToDatabase();
-        alert("✅ Order sent! Freelancer will see it when they come online.");
         resetAndClose();
       }
     } catch (error) {
@@ -372,25 +300,6 @@ export default function OrderModal({
     });
     setOrderMode(null);
     setCurrentOrderId(null);
-    setShowLocationModal(false);
-    setShowNegotiationModal(false);
-    setCounterOfferData(null);
-  };
-
-  // ===== HANDLE LOCATION PERMISSION =====
-  const handleLocationPermissionGranted = (granted) => {
-    if (granted) {
-      console.log("✅ Location permission granted");
-      resetAndClose();
-    }
-    setShowLocationModal(false);
-  };
-
-  // ===== HANDLE NEGOTIATION RESPONSE =====
-  const handleNegotiationResponse = async (response, newPrice) => {
-    console.log("Negotiation response:", response, newPrice);
-    // The negotiation modal handles its own socket communication
-    // We just wait for the next socket event
   };
 
   if (!isOpen) return null;
@@ -707,28 +616,6 @@ export default function OrderModal({
           </form>
         </div>
       </div>
-
-      {showLocationModal && (
-        <LocationPermissionModal
-          isOpen={showLocationModal}
-          onClose={() => setShowLocationModal(false)}
-          onPermissionGranted={handleLocationPermissionGranted}
-        />
-      )}
-
-      {showNegotiationModal && counterOfferData && (
-        <NegotiationModal
-          isOpen={showNegotiationModal}
-          onClose={() => setShowNegotiationModal(false)}
-          order={{
-            orderId: currentOrderId,
-            ...counterOfferData,
-            type: "given",
-          }}
-          onRespond={handleNegotiationResponse}
-          username={clientUsername}
-        />
-      )}
     </>
   );
 }

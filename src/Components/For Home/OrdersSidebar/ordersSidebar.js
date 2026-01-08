@@ -20,6 +20,7 @@ import {
   confirmArrival,
   updateOrderLocation,
 } from "@/Actions/Orders/orders";
+import { updateOrderProgress } from "@/Actions/Orders/fallbackHandler";
 
 export default function OrdersSidebar() {
   const { initialUserData } = useUserData();
@@ -44,8 +45,177 @@ export default function OrdersSidebar() {
   const [showRealtimeOrderModal, setShowRealtimeOrderModal] = useState(false);
   const [realtimeOrder, setRealtimeOrder] = useState(null);
   const [showRealtimeOfferModal, setShowRealtimeOfferModal] = useState(false);
-  const globalSocket = getSocket();
-  console.log({ globalSocket });
+  const [socketReady, setSocketReady] = useState(false);
+
+  // ============================================
+  // MODAL PRIORITY QUEUE SYSTEM
+  // ============================================
+  const [modalQueue, setModalQueue] = useState([]);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+
+  const MODAL_TYPES = {
+    FREELANCER_REMINDER: "FREELANCER_REMINDER",
+    REALTIME_ORDER: "REALTIME_ORDER",
+    LOCATION_PERMISSION: "LOCATION_PERMISSION",
+    NEGOTIATION: "NEGOTIATION",
+    ARRIVAL_CONFIRMATION: "ARRIVAL_CONFIRMATION",
+    SERVICE_COMPLETE: "SERVICE_COMPLETE",
+    SATISFACTION: "SATISFACTION",
+  };
+
+  const MODAL_PRIORITIES = {
+    [MODAL_TYPES.FREELANCER_REMINDER]: 7, // Highest - CRITICAL - Freelancer must mark "I have reached"
+    [MODAL_TYPES.REALTIME_ORDER]: 6, // Incoming real-time order
+    [MODAL_TYPES.LOCATION_PERMISSION]: 5, // Location sharing needed
+    [MODAL_TYPES.NEGOTIATION]: 4, // Counter-offer response needed
+    [MODAL_TYPES.ARRIVAL_CONFIRMATION]: 3, // Freelancer arrival confirmation
+    [MODAL_TYPES.SERVICE_COMPLETE]: 2, // Service completion form
+    [MODAL_TYPES.SATISFACTION]: 1, // Client satisfaction/review
+  };
+
+  // Add modal to queue with priority
+  const enqueueModal = useCallback((modalType, data) => {
+    setModalQueue((prevQueue) => {
+      // Check if this modal type is already in queue or currently showing
+      const existsInQueue = prevQueue.some((item) => item.type === modalType);
+      if (existsInQueue) {
+        return prevQueue; // Don't add duplicates
+      }
+
+      const newModal = {
+        type: modalType,
+        data,
+        priority: MODAL_PRIORITIES[modalType] || 0,
+      };
+
+      // Add to queue and sort by priority (highest first)
+      const newQueue = [...prevQueue, newModal].sort(
+        (a, b) => b.priority - a.priority
+      );
+
+      console.log(
+        `📋 Modal queued: ${modalType} (Priority: ${newModal.priority})`
+      );
+      return newQueue;
+    });
+  }, []);
+
+  // Process next modal in queue
+  const processNextModal = useCallback(() => {
+    setModalQueue((prevQueue) => {
+      if (prevQueue.length === 0) {
+        setIsProcessingQueue(false);
+        return [];
+      }
+
+      const [nextModal, ...remainingQueue] = prevQueue;
+      console.log(`▶️ Processing modal: ${nextModal.type}`);
+
+      // Show the appropriate modal based on type
+      switch (nextModal.type) {
+        case MODAL_TYPES.FREELANCER_REMINDER:
+          setCurrentReminderOrder(nextModal.data);
+          setShowReminderModal(true);
+          break;
+
+        case MODAL_TYPES.REALTIME_ORDER:
+          setRealtimeOrder(nextModal.data);
+          setShowRealtimeOrderModal(true);
+          break;
+
+        case MODAL_TYPES.LOCATION_PERMISSION:
+          setShowLocationModal(true);
+          break;
+
+        case MODAL_TYPES.NEGOTIATION:
+          setCurrentNegotiation(nextModal.data);
+          setShowNegotiationModal(true);
+          break;
+
+        case MODAL_TYPES.ARRIVAL_CONFIRMATION:
+          setArrivalOrder(nextModal.data);
+          setShowArrivalModal(true);
+          break;
+
+        case MODAL_TYPES.SERVICE_COMPLETE:
+          setServiceOrder(nextModal.data);
+          setShowServiceModal(true);
+          break;
+
+        case MODAL_TYPES.SATISFACTION:
+          setSatisfactionOrder(nextModal.data);
+          setShowSatisfactionModal(true);
+          break;
+
+        default:
+          console.warn(`Unknown modal type: ${nextModal.type}`);
+      }
+
+      setIsProcessingQueue(true);
+      return remainingQueue;
+    });
+  }, []);
+
+  // Auto-process queue when items added and not currently processing
+  useEffect(() => {
+    if (modalQueue.length > 0 && !isProcessingQueue) {
+      processNextModal();
+    }
+  }, [modalQueue, isProcessingQueue, processNextModal]);
+
+  // Handle modal close - process next in queue
+  const handleModalClose = useCallback(
+    (modalType) => {
+      console.log(`✅ Modal closed: ${modalType}`);
+      setIsProcessingQueue(false);
+
+      // Close the specific modal
+      switch (modalType) {
+        case MODAL_TYPES.FREELANCER_REMINDER:
+          setShowReminderModal(false);
+          setCurrentReminderOrder(null);
+          break;
+
+        case MODAL_TYPES.REALTIME_ORDER:
+          setShowRealtimeOrderModal(false);
+          setRealtimeOrder(null);
+          break;
+
+        case MODAL_TYPES.LOCATION_PERMISSION:
+          setShowLocationModal(false);
+          break;
+
+        case MODAL_TYPES.NEGOTIATION:
+          setShowNegotiationModal(false);
+          setCurrentNegotiation(null);
+          break;
+
+        case MODAL_TYPES.ARRIVAL_CONFIRMATION:
+          setShowArrivalModal(false);
+          setArrivalOrder(null);
+          break;
+
+        case MODAL_TYPES.SERVICE_COMPLETE:
+          setShowServiceModal(false);
+          setServiceOrder(null);
+          break;
+
+        case MODAL_TYPES.SATISFACTION:
+          setShowSatisfactionModal(false);
+          setSatisfactionOrder(null);
+          break;
+      }
+
+      // Process next modal after a small delay for smooth UX
+      setTimeout(() => {
+        if (modalQueue.length > 0) {
+          processNextModal();
+        }
+      }, 300);
+    },
+    [modalQueue, processNextModal, MODAL_TYPES]
+  );
+
   // Load orders from initialUserData
   useEffect(() => {
     if (!initialUserData) return;
@@ -63,78 +233,78 @@ export default function OrdersSidebar() {
   }, [initialUserData]);
 
   // ============================================
-  // CRITICAL FIX: LISTEN FOR REAL-TIME INCOMING ORDERS
+  // UNIFIED SOCKET EVENT LISTENERS (ALL REAL-TIME EVENTS)
   // ============================================
   useEffect(() => {
-    // Check if user is freelancer
-    if (!initialUserData?.isFreelancer) return;
+    if (!initialUserData?.username) {
+      console.log("⏳ Waiting for user data...");
+      return;
+    }
 
     const socket = getSocket();
 
     if (!socket) {
-      console.error("❌ Socket not available");
-      return;
+      console.warn("⚠️ Socket not initialized yet, retrying...");
+      const retryInterval = setInterval(() => {
+        const retrySocket = getSocket();
+        if (retrySocket && retrySocket.connected) {
+          console.log("✅ Socket now available, triggering re-setup");
+          clearInterval(retryInterval);
+          setSocketReady(true); // Trigger re-render
+        }
+      }, 500);
+      return () => clearInterval(retryInterval);
     }
 
-    // if (!socket.connected) {
-    //   console.warn("⚠️ Socket not connected yet, waiting...");
+    // If socket exists but not connected, wait for connection
+    if (!socket.connected) {
+      console.warn("⚠️ Socket exists but not connected, waiting...");
 
-    //   // Wait for socket to connect
-    //   const onConnect = () => {
-    //     console.log("✅ Socket connected, now listening for orders");
-    //     setupListener();
-    //   };
+      const handleConnect = () => {
+        console.log("✅ Socket connected! Triggering listener setup...");
+        setSocketReady(true); // Trigger re-render to setup listeners
+      };
 
-    //   socket.once("connect", onConnect);
+      socket.on("connect", handleConnect);
 
-    //   // If already connected, setup immediately
-    //   if (socket.connected) {
-    //     console.log("ready to listen");
-    //     setupListener(socket);
-    //   }
-
-    //   return () => {
-    //     socket.off("connect", onConnect);
-    //     socket.off("new-order-realtime", handleIncomingOrder);
-    //   };
-    // } else {
-    // Socket already connected
-    console.log("✅ Socket already connected, setting up listener");
-    // setupListener();
-    socket.on("new-order-realtime", handleIncomingOrder);
-
-    return () => {
-      socket.off("new-order-realtime", handleIncomingOrder);
-    };
-    // }
-
-    function setupListener(socketRecieved) {
-      if (!socketRecieved) return;
-      console.log({ socket });
-      console.log("📡 Registering 'new-order-realtime' listener");
-
-      // Register the listener
-      socketRecieved.on("new-order-realtime", handleIncomingOrder);
-
-      console.log("✅ Listener registered successfully");
+      return () => {
+        socket.off("connect", handleConnect);
+      };
     }
 
-    function handleIncomingOrder(orderData) {
-      console.log("🔔🔔🔔 REAL-TIME ORDER RECEIVED! 🔔🔔🔔");
-      console.log("Order data:", orderData);
+    console.log(
+      "🔌 Setting up socket listeners for:",
+      initialUserData.username,
+      "| Socket ID:",
+      socket.id,
+      "| Connected:",
+      socket.connected
+    );
 
-      // Format order data to match schema
+    // ========================================
+    // FREELANCER ONLY: Listen for incoming orders
+    // ========================================
+    const handleIncomingOrder = (orderData) => {
+      console.log("🔔 REAL-TIME ORDER RECEIVED!", orderData);
+
       const formattedOrder = {
         orderId: orderData.orderId,
         customerInfo: {
           username: orderData.clientUsername,
           profilePicture: orderData.clientProfilePicture || "",
         },
-        user: orderData.clientUsername, // CRITICAL: OrderDetailModal needs this
+        freelancerInfo: {
+          username: initialUserData.username,
+          profilePicture:
+            orderData.freelancerProfilePicture ||
+            initialUserData.profilePicture ||
+            "",
+        },
+        user: orderData.clientUsername,
         priceToBePaid: orderData.budget,
         currency: orderData.currency,
         problemDescription: orderData.problemStatement,
-        problemStatement: orderData.problemStatement, // Some components check this field
+        problemStatement: orderData.problemStatement,
         expertiseRequired: orderData.expertiseRequired,
         city: orderData.city,
         deadline: orderData.deadline,
@@ -147,23 +317,411 @@ export default function OrdersSidebar() {
         createdOn: new Date(),
       };
 
-      console.log("✅ Formatted order:", formattedOrder);
-
-      // Add to orders list
       setOrders((prevOrders) => {
-        console.log("📝 Adding order to orders list");
+        // Prevent duplicates
+        if (prevOrders.some((o) => o.orderId === formattedOrder.orderId)) {
+          return prevOrders;
+        }
         return [...prevOrders, formattedOrder];
       });
 
-      // Show order detail modal immediately
-      console.log("🪟 Opening OrderDetailModal");
       setRealtimeOrder(formattedOrder);
       setShowRealtimeOrderModal(true);
+    };
 
-      console.log("✅ Modal state updated, should be visible now!");
-    }
-  }, [initialUserData?.isFreelancer, globalSocket?.connected, globalSocket]);
+    // ========================================
+    // BOTH: Order accepted
+    // ========================================
+    const handleOrderAccepted = (data) => {
+      console.log("🎉 Order accepted:", data);
 
+      setOrders((prevOrders) => {
+        const updatedOrders = prevOrders.map((order) => {
+          if (order.orderId === data.orderId) {
+            const updatedOrder = {
+              ...order,
+              status: "accepted",
+              priceToBePaid: data.acceptedPrice,
+              expectedReachTime:
+                data.order?.expectedReachTime || order.expectedReachTime,
+              acceptedAt: data.order?.acceptedAt || new Date(),
+              acceptedBy: data.acceptedBy,
+            };
+
+            // Only show location modal for CLIENT (type: "given")
+            if (order.type === "given") {
+              console.log(
+                "📍 Client order accepted - enqueuing location modal"
+              );
+              // Use queue system for proper priority handling
+              setTimeout(() => {
+                enqueueModal(MODAL_TYPES.LOCATION_PERMISSION, null);
+              }, 100);
+            } else {
+              console.log(
+                "✅ Freelancer order accepted - no location modal needed"
+              );
+            }
+
+            return updatedOrder;
+          }
+          return order;
+        });
+
+        return updatedOrders;
+      });
+
+      setShowRealtimeOrderModal(false);
+      setShowNegotiationModal(false);
+    };
+
+    // ========================================
+    // BOTH: Order rejected
+    // ========================================
+    const handleOrderRejected = (data) => {
+      console.log("❌ Order rejected:", data);
+
+      setOrders((prevOrders) =>
+        prevOrders.filter((order) => order.orderId !== data.orderId)
+      );
+
+      setShowRealtimeOrderModal(false);
+      setShowNegotiationModal(false);
+    };
+
+    // ========================================
+    // BOTH: Negotiation updates
+    // ========================================
+    const handleNegotiationUpdate = async (data) => {
+      console.log("💰 Negotiation update:", data);
+
+      // First, update the orders
+      setOrders((prevOrders) => {
+        const existingOrder = prevOrders.find(
+          (o) => o.orderId === data.orderId
+        );
+
+        let updatedOrders;
+        let clientUsername, freelancerUsername;
+
+        if (existingOrder) {
+          // Order exists - update it
+          updatedOrders = prevOrders.map((order) => {
+            if (order.orderId === data.orderId) {
+              // Extract usernames for database persistence
+              if (order.type === "given") {
+                clientUsername = initialUserData.username;
+                freelancerUsername = order.freelancerInfo?.username;
+              } else {
+                clientUsername = order.customerInfo?.username;
+                freelancerUsername = initialUserData.username;
+              }
+
+              return {
+                ...order,
+                negotiation: {
+                  isNegotiating: true,
+                  currentOfferTo: initialUserData.username,
+                  offeredPrice: data.newPrice,
+                  lastOfferBy: data.offeredBy || data.offeredByUsername,
+                },
+                expectedReachTime:
+                  data.expectedReachTime || order.expectedReachTime,
+              };
+            }
+            return order;
+          });
+
+          // PERSIST NEGOTIATION STATE TO DATABASE
+          if (clientUsername && freelancerUsername) {
+            updateOrderProgress({
+              orderId: data.orderId,
+              clientUsername,
+              freelancerUsername,
+              updateType: "negotiation",
+              updateData: {
+                negotiation: {
+                  isNegotiating: true,
+                  currentOfferTo: initialUserData.username,
+                  offeredPrice: data.newPrice,
+                  lastOfferBy: data.offeredBy || data.offeredByUsername,
+                },
+                offeredPrice: data.newPrice,
+                expectedReachTime: data.expectedReachTime,
+              },
+            }).catch((err) =>
+              console.error("Failed to persist negotiation:", err)
+            );
+          }
+        } else {
+          // Order doesn't exist - create it from counter-offer data
+          console.log(
+            "🆕 Order not in list, creating from counter-offer data:",
+            data.orderId
+          );
+
+          const newOrder = {
+            orderId: data.orderId,
+            type: "given", // Client sent this order
+            status: "pending",
+            user: data.offeredBy || data.offeredByUsername,
+            freelancerInfo: {
+              username: data.offeredBy || data.offeredByUsername,
+            },
+            priceToBePaid: data.newPrice,
+            offeredPrice: data.newPrice,
+            currency: data.currency || "USD",
+            expectedReachTime: data.expectedReachTime,
+            negotiation: {
+              isNegotiating: true,
+              currentOfferTo: initialUserData.username,
+              offeredPrice: data.newPrice,
+              lastOfferBy: data.offeredBy || data.offeredByUsername,
+            },
+            createdOn: new Date(),
+          };
+
+          updatedOrders = [...prevOrders, newOrder];
+
+          // For new orders created from counter-offer, also persist to database
+          clientUsername = initialUserData.username;
+          freelancerUsername = data.offeredBy || data.offeredByUsername;
+
+          if (clientUsername && freelancerUsername) {
+            updateOrderProgress({
+              orderId: data.orderId,
+              clientUsername,
+              freelancerUsername,
+              updateType: "negotiation",
+              updateData: {
+                negotiation: newOrder.negotiation,
+                offeredPrice: data.newPrice,
+                expectedReachTime: data.expectedReachTime,
+              },
+            }).catch((err) =>
+              console.error("Failed to persist new negotiation:", err)
+            );
+          }
+        }
+
+        // After updating, find the order and set modal
+        const updatedOrder = updatedOrders.find(
+          (o) => o.orderId === data.orderId
+        );
+        if (updatedOrder) {
+          console.log(
+            "✅ Setting negotiation modal with order:",
+            updatedOrder.orderId
+          );
+          // Use setTimeout to ensure state updates happen after orders update
+          setTimeout(() => {
+            setCurrentNegotiation(updatedOrder);
+            setShowNegotiationModal(true);
+          }, 0);
+        } else {
+          console.error("❌ Order not found for negotiation:", data.orderId);
+        }
+
+        return updatedOrders;
+      });
+    };
+
+    // ========================================
+    // FREELANCER ONLY: Location shared
+    // ========================================
+    const handleLocationShared = (data) => {
+      console.log("📍 Client shared location:", data);
+
+      setOrders((prevOrders) => {
+        const updatedOrders = prevOrders.map((order) =>
+          order.orderId === data.orderId
+            ? {
+                ...order,
+                location: {
+                  latitude: data.latitude,
+                  longitude: data.longitude,
+                },
+              }
+            : order
+        );
+
+        // Show freelancer reminder modal if flag is set
+        if (data.showReminderModal) {
+          const order = updatedOrders.find((o) => o.orderId === data.orderId);
+          if (order) {
+            setTimeout(() => {
+              setCurrentReminderOrder(order);
+              setShowReminderModal(true);
+            }, 100);
+          }
+        }
+
+        return updatedOrders;
+      });
+    };
+
+    // ========================================
+    // CLIENT ONLY: Freelancer reached
+    // ========================================
+    const handleFreelancerReached = (data) => {
+      console.log("🚗 Freelancer reached:", data);
+
+      setOrders((prevOrders) => {
+        const updatedOrders = prevOrders.map((order) =>
+          order.orderId === data.orderId
+            ? {
+                ...order,
+                isReached: {
+                  value: true,
+                  time: data.reachedAt,
+                  confirmed: false,
+                },
+              }
+            : order
+        );
+
+        // Enqueue arrival confirmation modal with high priority
+        const order = updatedOrders.find((o) => o.orderId === data.orderId);
+        if (order) {
+          enqueueModal(MODAL_TYPES.ARRIVAL_CONFIRMATION, order);
+        }
+
+        return updatedOrders;
+      });
+    };
+
+    // ========================================
+    // FREELANCER ONLY: Arrival confirmed
+    // ========================================
+    const handleArrivalConfirmed = (data) => {
+      console.log("✅ Arrival confirmed:", data);
+
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order.orderId === data.orderId
+            ? {
+                ...order,
+                isReached: {
+                  ...order.isReached,
+                  confirmed: data.confirmed,
+                  confirmedAt: new Date(),
+                },
+                status: data.confirmed ? "in-progress" : "disputed",
+              }
+            : order
+        )
+      );
+    };
+
+    // ========================================
+    // CLIENT ONLY: Order completed
+    // ========================================
+    const handleOrderCompleted = (data) => {
+      console.log("✅ Order completed:", data);
+
+      setOrders((prevOrders) => {
+        const updatedOrders = prevOrders.map((order) =>
+          order.orderId === data.orderId
+            ? {
+                ...order,
+                status: "completed",
+                proofPictures: data.proofPictures,
+                finishDate: data.completedAt,
+              }
+            : order
+        );
+
+        // Show satisfaction modal
+        const order = updatedOrders.find((o) => o.orderId === data.orderId);
+        if (order) {
+          setSatisfactionOrder(order);
+          setShowSatisfactionModal(true);
+        }
+
+        return updatedOrders;
+      });
+    };
+
+    // ========================================
+    // BOTH: Save to database (fallback)
+    // ========================================
+    const handleSaveToDatabase = async (data) => {
+      console.log("💾 Saving order to database:", data.reason);
+
+      try {
+        const { saveRealtimeOrderToDatabase } = await import(
+          "@/Actions/Orders/fallbackHandler"
+        );
+
+        const result = await saveRealtimeOrderToDatabase(data.orderData);
+
+        if (result.success) {
+          console.log("✅ Order saved to database successfully");
+
+          setOrders((prev) =>
+            prev.filter((order) => order.orderId !== data.orderId)
+          );
+        } else {
+          console.error("❌ Failed to save order to database");
+        }
+      } catch (error) {
+        console.error("Error in handleSaveToDatabase:", error);
+      }
+    };
+
+    // ========================================
+    // REGISTER EVENT LISTENERS BASED ON USER TYPE
+    // ========================================
+
+    // FREELANCER listeners
+    // if (initialUserData.isFreelancer) {
+    socket.on("new-order-realtime", handleIncomingOrder);
+    socket.on("location-shared-realtime", handleLocationShared);
+    socket.on("arrival-confirmed-realtime", handleArrivalConfirmed);
+    // }
+
+    // CLIENT listeners
+
+    // BOTH listeners (common events)
+    socket.on("order-completed-realtime", handleOrderCompleted);
+    socket.on("freelancer-reached-realtime", handleFreelancerReached);
+    socket.on("order-accepted-realtime", handleOrderAccepted);
+    socket.on("order-rejected-realtime", handleOrderRejected);
+    socket.on("counter-offer-realtime", handleNegotiationUpdate);
+    socket.on("save-order-to-database", handleSaveToDatabase);
+    socket.on("save-location-to-database", handleSaveToDatabase);
+    socket.on("save-reached-to-database", handleSaveToDatabase);
+    socket.on("save-arrival-confirmation-to-database", handleSaveToDatabase);
+    socket.on("save-completion-to-database", handleSaveToDatabase);
+    socket.on("save-review-to-database", handleSaveToDatabase);
+
+    console.log("✅ All socket listeners registered");
+
+    // ========================================
+    // CLEANUP - Remove all listeners on unmount
+    // ========================================
+    return () => {
+      console.log("🧹 Cleaning up socket listeners");
+
+      // if (initialUserData.isFreelancer) {
+      socket.off("new-order-realtime", handleIncomingOrder);
+      socket.off("location-shared-realtime", handleLocationShared);
+      socket.off("arrival-confirmed-realtime", handleArrivalConfirmed);
+      // }
+
+      socket.off("order-completed-realtime", handleOrderCompleted);
+      socket.off("freelancer-reached-realtime", handleFreelancerReached);
+      socket.off("order-accepted-realtime", handleOrderAccepted);
+      socket.off("order-rejected-realtime", handleOrderRejected);
+      socket.off("counter-offer-realtime", handleNegotiationUpdate);
+      socket.off("save-order-to-database", handleSaveToDatabase);
+      socket.off("save-location-to-database", handleSaveToDatabase);
+      socket.off("save-reached-to-database", handleSaveToDatabase);
+      socket.off("save-arrival-confirmation-to-database", handleSaveToDatabase);
+      socket.off("save-completion-to-database", handleSaveToDatabase);
+      socket.off("save-review-to-database", handleSaveToDatabase);
+    };
+  }, [initialUserData?.username, socketReady]); // ✅ Re-run when user data loads or socket becomes ready
   // ============================================
   // Real-time order handlers
   // ============================================
@@ -177,7 +735,8 @@ export default function OrdersSidebar() {
         realtimeOrder.orderId,
         "accept",
         null,
-        "Order accepted"
+        "Order accepted",
+        realtimeOrder // Pass full order data for reconstruction
       );
 
       // Update order status locally
@@ -204,19 +763,18 @@ export default function OrdersSidebar() {
     setShowRealtimeOfferModal(true);
   };
 
-  // Helper function to check and show appropriate modals
+  // Helper function to check and enqueue appropriate modals (Priority-Based Queue System)
   const checkAndShowModals = useCallback(
     (givenOrders, pendingOrders, allOrders) => {
-      // Priority 1: Freelancer reminder modal (CRITICAL)
+      // Priority 1: Freelancer reminder modal (CRITICAL - Highest Priority)
       const acceptedFreelancerOrder = pendingOrders?.find(
         (order) =>
-          order.status === "accepted" && order.isReached?.value === false
+          order.status === "accepted" && order.isReached?.confi === false
       );
+      console.log({ acceptedFreelancerOrder });
 
-      if (acceptedFreelancerOrder) {
-        setCurrentReminderOrder(acceptedFreelancerOrder);
-        setShowReminderModal(true);
-        return;
+      if (acceptedFreelancerOrder && !showReminderModal) {
+        enqueueModal(MODAL_TYPES.FREELANCER_REMINDER, acceptedFreelancerOrder);
       }
 
       // Priority 2: Location permission for accepted given orders
@@ -227,24 +785,26 @@ export default function OrdersSidebar() {
           !order.location?.longitude &&
           !locationPermissionGranted
       );
-      if (needsPermission && !locationPermissionGranted) {
-        setShowLocationModal(true);
-        return;
+      console.log({ needsPermission });
+
+      if (needsPermission && !locationPermissionGranted && !showLocationModal) {
+        enqueueModal(MODAL_TYPES.LOCATION_PERMISSION, null);
       }
 
       // Priority 3: Negotiation modal
       const negotiationOrder = allOrders.find(
         (order) =>
+          order.status === "pending" &&
           order.negotiation?.isNegotiating === true &&
           ((order.type === "given" &&
             order.negotiation.currentOfferTo === "client") ||
             (order.type === "received" &&
               order.negotiation.currentOfferTo === "freelancer"))
       );
-      if (negotiationOrder) {
-        setCurrentNegotiation(negotiationOrder);
-        setShowNegotiationModal(true);
-        return;
+      console.log({ negotiationOrder });
+
+      if (negotiationOrder && !showNegotiationModal) {
+        enqueueModal(MODAL_TYPES.NEGOTIATION, negotiationOrder);
       }
 
       // Priority 4: Arrival confirmation (client view)
@@ -254,10 +814,10 @@ export default function OrdersSidebar() {
           order.isReached?.value === true &&
           order.isReached?.confirmed !== true
       );
-      if (arrivedOrders.length > 0) {
-        setArrivalOrder(arrivedOrders[0]);
-        setShowArrivalModal(true);
-        return;
+      console.log({ arrivedOrders });
+
+      if (arrivedOrders.length > 0 && !showArrivalModal) {
+        enqueueModal(MODAL_TYPES.ARRIVAL_CONFIRMATION, arrivedOrders[0]);
       }
 
       // Priority 5: Service completion (freelancer view)
@@ -267,13 +827,12 @@ export default function OrdersSidebar() {
           order.isReached?.value === true &&
           order.isReached?.confirmed === true
       );
-      if (confirmedOrders.length > 0) {
-        setServiceOrder(confirmedOrders[0]);
-        setShowServiceModal(true);
-        return;
+      console.log({ confirmedOrders });
+      if (confirmedOrders.length > 0 && !showServiceModal) {
+        enqueueModal(MODAL_TYPES.SERVICE_COMPLETE, confirmedOrders[0]);
       }
 
-      // Priority 6: Satisfaction feedback (client view)
+      // Priority 6: Satisfaction feedback (client view) - Lowest Priority
       const completedOrders = givenOrders.filter(
         (order) =>
           order.status === "completed" &&
@@ -281,24 +840,27 @@ export default function OrdersSidebar() {
           order.review === undefined &&
           order.isSatisfied === false
       );
-      if (completedOrders.length > 0) {
-        setSatisfactionOrder(completedOrders[0]);
-        setShowSatisfactionModal(true);
+      console.log({ completedOrders });
+
+      if (completedOrders.length > 0 && !showSatisfactionModal) {
+        enqueueModal(MODAL_TYPES.SATISFACTION, completedOrders[0]);
       }
     },
     [
-      initialUserData,
       locationPermissionGranted,
-      currentNegotiation,
+      showReminderModal,
+      showLocationModal,
+      showNegotiationModal,
       showArrivalModal,
       showServiceModal,
       showSatisfactionModal,
+      enqueueModal,
+      MODAL_TYPES,
     ]
   );
 
   const handleReminderClose = () => {
-    setShowReminderModal(false);
-    setCurrentReminderOrder(null);
+    handleModalClose(MODAL_TYPES.FREELANCER_REMINDER);
   };
 
   const handleFreelancerReached = async () => {
@@ -384,14 +946,12 @@ export default function OrdersSidebar() {
     }
   };
 
-  const handleLocationPermission = async (granted) => {
-    if (granted && navigator.geolocation) {
+  const handleLocationPermission = async (granted, coordinates) => {
+    // Close location modal and process next in queue
+    handleModalClose(MODAL_TYPES.LOCATION_PERMISSION);
+    if (granted && coordinates) {
       try {
-        const position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject);
-        });
-
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude } = coordinates;
 
         const orderNeedingLocation = orders.find(
           (order) =>
@@ -430,15 +990,13 @@ export default function OrdersSidebar() {
         console.error("Error getting location:", error);
       }
     }
-    setShowLocationModal(false);
   };
 
   const handleNegotiationResponse = (updatedOrders) => {
     if (updatedOrders) {
       setOrders(updatedOrders);
     }
-    setShowNegotiationModal(false);
-    setCurrentNegotiation(null);
+    handleModalClose(MODAL_TYPES.NEGOTIATION);
   };
 
   const handleConfirmArrival = async (orderId) => {
@@ -467,8 +1025,7 @@ export default function OrdersSidebar() {
         );
 
         console.log("Arrival confirmed for order:", orderId);
-        setShowArrivalModal(false);
-        setArrivalOrder(null);
+        handleModalClose(MODAL_TYPES.ARRIVAL_CONFIRMATION);
       }
     } catch (error) {
       console.error("Error confirming arrival:", error);
@@ -476,52 +1033,48 @@ export default function OrdersSidebar() {
   };
 
   const handleRejectArrival = async (orderId) => {
-    try {
-      const formData = new FormData();
-      formData.append("orderId", orderId);
-      formData.append("clientUsername", initialUserData?.username);
-      formData.append("confirmed", "false");
+    // try {
+    //   const formData = new FormData();
+    //   formData.append("orderId", orderId);
+    //   formData.append("clientUsername", initialUserData?.username);
+    //   formData.append("confirmed", "false");
 
-      const result = await confirmArrival(formData);
+    //   const result = await confirmArrival(formData);
 
-      if (result.success) {
-        setOrders((prevOrders) =>
-          prevOrders.map((order) =>
-            order.orderId === orderId
-              ? {
-                  ...order,
-                  isReached: {
-                    value: false,
-                    time: null,
-                    confirmed: false,
-                  },
-                }
-              : order
-          )
-        );
+    //   if (result?.success) {
+    //     setOrders((prevOrders) =>
+    //       prevOrders.map((order) =>
+    //         order.orderId === orderId
+    //           ? {
+    //               ...order,
+    //               isReached: {
+    //                 value: false,
+    //                 time: null,
+    //                 confirmed: false,
+    //               },
+    //             }
+    //           : order
+    //       )
+    //     );
 
-        console.log("Arrival rejected for order:", orderId);
-        setShowArrivalModal(false);
-        setArrivalOrder(null);
-      }
-    } catch (error) {
-      console.error("Error rejecting arrival:", error);
-    }
+    //     console.log("Arrival rejected for order:", orderId);
+    handleModalClose(MODAL_TYPES.ARRIVAL_CONFIRMATION);
+    //   }
+    // } catch (error) {
+    //   console.error("Error rejecting arrival:", error);
+    // }
   };
 
   const handleServiceCompleted = async (serviceData) => {
-    setShowServiceModal(false);
-    setServiceOrder(null);
+    handleModalClose(MODAL_TYPES.SERVICE_COMPLETE);
   };
 
   const handleServiceCancelled = (orderId) => {
-    setShowServiceModal(false);
-    setServiceOrder(null);
+    handleModalClose(MODAL_TYPES.SERVICE_COMPLETE);
   };
 
   const handleSatisfactionSubmitted = async (satisfactionData) => {
-    setShowSatisfactionModal(false);
-    setSatisfactionOrder(null);
+    handleModalClose(MODAL_TYPES.SATISFACTION);
   };
 
   return (
@@ -530,9 +1083,9 @@ export default function OrdersSidebar() {
         <h2 className={styles.ordersHeader}>Orders</h2>
         <div className={styles.ordersList}>
           {orders.length > 0 ? (
-            orders.map((order) => (
+            orders.map((order, index) => (
               <OrderCard
-                key={order.orderId}
+                key={index}
                 order={order}
                 onOrderUpdate={handleOrderUpdate}
                 refreshOrders={(newOrders) => setOrders([...newOrders])}
@@ -549,6 +1102,12 @@ export default function OrdersSidebar() {
           isOpen={showLocationModal}
           onClose={() => setShowLocationModal(false)}
           onPermissionGranted={handleLocationPermission}
+          order={orders.find(
+            (order) =>
+              order.type === "given" &&
+              order.status === "accepted" &&
+              !order.location?.latitude
+          )}
         />
       </ModalPortal>
 

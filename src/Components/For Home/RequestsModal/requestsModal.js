@@ -5,6 +5,10 @@ import styles from "./RequestsModal.module.css";
 import AudioPlayer from "../AudioPlayer/audioPlayer";
 import RequestDetailModal from "../RequestDetailModal/requestDetailModal";
 import axios from "axios";
+import {
+  listenForNewServiceRequests,
+  listenForServiceRequestFulfilled,
+} from "@/Actions/ServiceRequests/serviceRequestSocketClient";
 
 export default function RequestsModal({ isOpen, onClose, city }) {
   const [requests, setRequests] = useState([]);
@@ -13,6 +17,7 @@ export default function RequestsModal({ isOpen, onClose, city }) {
 
   useEffect(() => {
     if (isOpen && city) {
+      // Fetch existing requests from database
       axios
         .post("/api/get-service-requests", { city })
         .then((res) => {
@@ -25,6 +30,43 @@ export default function RequestsModal({ isOpen, onClose, city }) {
         .catch((err) => {
           console.error("Error fetching service requests:", err);
         });
+
+      // Listen for new service requests in real-time
+      const unsubscribeNewRequests = listenForNewServiceRequests(
+        (serviceRequest) => {
+          console.log("📨 New service request received:", serviceRequest);
+
+          // Only add if it's in the same city
+          if (serviceRequest.city === city) {
+            setRequests((prev) => {
+              // Check if request already exists
+              const exists = prev.some(
+                (req) => req._id === serviceRequest._id || req.requestId === serviceRequest.requestId
+              );
+              if (exists) return prev;
+
+              // Add to beginning of list (newest first)
+              return [serviceRequest, ...prev];
+            });
+          }
+        }
+      );
+
+      // Listen for service requests that got fulfilled
+      const unsubscribeFulfilled = listenForServiceRequestFulfilled((data) => {
+        console.log("📋 Service request fulfilled:", data);
+
+        // Remove fulfilled request from list
+        setRequests((prev) =>
+          prev.filter((req) => req.requestId !== data.requestId)
+        );
+      });
+
+      // Cleanup listeners on unmount
+      return () => {
+        unsubscribeNewRequests();
+        unsubscribeFulfilled();
+      };
     }
   }, [isOpen, city]);
 

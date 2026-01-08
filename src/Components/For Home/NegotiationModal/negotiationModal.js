@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import styles from "./negotiationModal.module.css";
 import { useNegotiateOrder } from "@/Utils/Mutations/mutations";
 import {
@@ -17,6 +18,7 @@ export default function NegotiationModal({
   username,
   isRealtime = false, // NEW: Flag to indicate if this is a real-time negotiation
 }) {
+  console.log({ order });
   const [showCounterInput, setShowCounterInput] = useState(false);
   const [counterPrice, setCounterPrice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -28,26 +30,46 @@ export default function NegotiationModal({
   const offeredPrice =
     order.negotiation?.offeredPrice || order.offeredPrice || 0;
   const currency = order.currency || "USD";
+  const socket = getSocket();
 
   const handleAccept = async () => {
     setIsLoading(true);
     try {
-      const acceptedPrice = order.negotiation?.offeredPrice;
-      const isOnline = await checkFreelancerOnline(freelancer.username);
-      if (isOnline) {
-        // USE SOCKETS for real-time negotiations
+      const acceptedPrice =
+        order.negotiation?.offeredPrice || order.offeredPrice;
+
+      if (socket && socket.connected) {
+        // ===== USE SOCKETS =====
         console.log("✅ Accepting offer via socket");
 
-        await respondToOrderRealtime(
-          order.orderId,
-          "accept",
-          acceptedPrice,
-          "Offer accepted"
-        );
+        socket.emit("counter-response-realtime", {
+          orderId: order.orderId,
+          response: "accept",
+          newPrice: acceptedPrice,
+          message: "Offer accepted",
+          orderData: order, // Include full order data for reconstruction
+        });
+
+        // Wait for confirmation
+        await new Promise((resolve) => {
+          const handler = (data) => {
+            if (data.orderId === order.orderId) {
+              socket.off("response-sent", handler);
+              resolve();
+            }
+          };
+          socket.on("response-sent", handler);
+
+          // Timeout after 5 seconds
+          setTimeout(() => {
+            socket.off("response-sent", handler);
+            resolve();
+          }, 5000);
+        });
 
         console.log("✅ Acceptance sent via socket");
       } else {
-        // USE DATABASE for offline negotiations
+        // ===== USE DATABASE =====
         console.log("✅ Accepting offer via database");
 
         negotiate({
@@ -61,6 +83,7 @@ export default function NegotiationModal({
       }
 
       onClose();
+      if (onRespond) onRespond();
     } catch (err) {
       console.error("Error accepting offer:", err);
     } finally {
@@ -69,26 +92,47 @@ export default function NegotiationModal({
   };
 
   const handleCounterOffer = async () => {
-    if (!counterPrice || parseFloat(counterPrice) <= 0) return;
+    if (!counterPrice || parseFloat(counterPrice) <= 0) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const newPrice = parseFloat(counterPrice);
+      const socket = getSocket();
 
-      if (isRealtime) {
-        // USE SOCKETS for real-time negotiations
+      if (socket && socket.connected) {
+        // ===== USE SOCKETS =====
         console.log("💰 Sending counter offer via socket");
 
-        await respondToOrderRealtime(
-          order.orderId,
-          "counter",
+        socket.emit("counter-response-realtime", {
+          orderId: order.orderId,
+          response: "counter",
           newPrice,
-          `Counter offer: ${newPrice}`
-        );
+          message: `Counter offer: ${newPrice}`,
+          orderData: order, // Include full order data for reconstruction
+        });
+
+        // Wait for confirmation
+        await new Promise((resolve) => {
+          const handler = (data) => {
+            if (data.orderId === order.orderId) {
+              socket.off("response-sent", handler);
+              resolve();
+            }
+          };
+          socket.on("response-sent", handler);
+
+          setTimeout(() => {
+            socket.off("response-sent", handler);
+            resolve();
+          }, 5000);
+        });
 
         console.log("💰 Counter offer sent via socket");
       } else {
-        // USE DATABASE for offline negotiations
+        // ===== USE DATABASE =====
         console.log("💰 Sending counter offer via database");
 
         negotiate({
@@ -102,8 +146,67 @@ export default function NegotiationModal({
       }
 
       onClose();
+      if (onRespond) onRespond();
     } catch (err) {
-      console.error("Error countering offer:", err);
+      console.error("Error sending counter offer:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!confirm("Are you sure you want to reject this offer?")) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const socket = getSocket();
+
+      if (socket && socket.connected) {
+        // ===== USE SOCKETS =====
+        console.log("❌ Rejecting offer via socket");
+
+        socket.emit("counter-response-realtime", {
+          orderId: order.orderId,
+          response: "reject",
+          message: "Offer rejected",
+          orderData: order, // Include full order data for reconstruction
+        });
+
+        await new Promise((resolve) => {
+          const handler = (data) => {
+            if (data.orderId === order.orderId) {
+              socket.off("response-sent", handler);
+              resolve();
+            }
+          };
+          socket.on("response-sent", handler);
+
+          setTimeout(() => {
+            socket.off("response-sent", handler);
+            resolve();
+          }, 5000);
+        });
+
+        console.log("✅ Rejection sent via socket");
+      } else {
+        // ===== USE DATABASE =====
+        console.log("❌ Rejecting offer via database");
+
+        negotiate({
+          orderId: order.orderId,
+          action: "reject",
+          currentUserType: isClient ? "client" : "freelancer",
+          currentUsername: username,
+          otherUsername: offerGiverInfo?.username,
+        });
+      }
+
+      onClose();
+      if (onRespond) onRespond();
+    } catch (err) {
+      console.error("Error rejecting offer:", err);
     } finally {
       setIsLoading(false);
     }
@@ -136,13 +239,18 @@ export default function NegotiationModal({
           <div className={styles.offerGiverSection}>
             <div className={styles.offerGiverAvatar}>
               {offerGiverInfo?.profilePicture ? (
-                <img src={offerGiverInfo.profilePicture} alt={offerGiverName} />
+                <Image
+                  src={offerGiverInfo.profilePicture}
+                  alt={offerGiverName || "User"}
+                  width={80}
+                  height={80}
+                  style={{ objectFit: "cover", borderRadius: "50%" }}
+                />
               ) : (
                 <div className={styles.offerGiverAvatarFallback}>
                   {offerGiverName
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
+                    ? offerGiverName.split(" ").map((n) => n[0]).join("")
+                    : "U"}
                 </div>
               )}
             </div>

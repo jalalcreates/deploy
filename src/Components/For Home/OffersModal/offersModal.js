@@ -6,6 +6,16 @@ import {
   getUserServiceRequests,
   updateOfferStatus,
 } from "@/Actions/ServiceRequests/serviceRequests";
+import {
+  listenForNewOffers,
+  acceptOfferRealtime,
+  declineOfferRealtime,
+} from "@/Actions/ServiceRequests/serviceRequestSocketClient";
+import {
+  createOrderFromAcceptedOffer,
+  removeDeclinedOfferFromDatabase,
+  deleteServiceRequestFromDatabase,
+} from "@/Actions/ServiceRequests/serviceRequestFallbackHandler";
 import styles from "./offersModal.module.css";
 import AudioPlayer from "../AudioPlayer/audioPlayer";
 
@@ -20,6 +30,28 @@ export default function OffersModal({ isOpen, onClose }) {
   useEffect(() => {
     if (isOpen && initialUserData?.username) {
       fetchServiceRequests();
+
+      // Listen for new offers in real-time
+      const unsubscribeOffers = listenForNewOffers((data) => {
+        console.log("💼 New offer received:", data);
+
+        // Update service requests to show the new offer
+        setServiceRequests((prev) =>
+          prev.map((request) =>
+            request.requestId === data.requestId
+              ? {
+                  ...request,
+                  offers: [...request.offers, data.offer],
+                }
+              : request
+          )
+        );
+      });
+
+      // Cleanup listener on unmount
+      return () => {
+        unsubscribeOffers();
+      };
     }
   }, [isOpen, initialUserData?.username]);
 
@@ -48,47 +80,127 @@ export default function OffersModal({ isOpen, onClose }) {
 
   const handleAcceptOffer = async (requestId, freelancerUsername) => {
     try {
-      const result = await updateOfferStatus(
-        requestId,
-        freelancerUsername,
-        "accept"
+      // Find the service request and accepted offer
+      const serviceRequest = serviceRequests.find(
+        (req) => req.requestId === requestId
       );
+      if (!serviceRequest) {
+        alert("Service request not found");
+        return;
+      }
 
-      if (result.success) {
-        // Update local state optimistically
-        setServiceRequests((prev) =>
-          prev.map((request) =>
-            request.requestId === requestId
-              ? {
-                  ...request,
-                  offers: request.offers.map((offer) => ({
-                    ...offer,
-                    accepted:
-                      offer.freelancerInfo.username === freelancerUsername,
-                  })),
-                }
-              : request
-          )
+      const acceptedOffer = serviceRequest.offers.find(
+        (offer) => offer.freelancerInfo.username === freelancerUsername
+      );
+      if (!acceptedOffer) {
+        alert("Offer not found");
+        return;
+      }
+
+      // Prepare service request data for order creation
+      const serviceRequestData = {
+        requestId: serviceRequest.requestId,
+        customerInfo: {
+          username: initialUserData.username,
+          profilePicture: initialUserData.profilePicture,
+        },
+        willingPrice: serviceRequest.willingPrice,
+        currency: serviceRequest.currency,
+        problemDescription: serviceRequest.problemDescription,
+        problemAudioId: serviceRequest.problemAudioId,
+        serviceImages: serviceRequest.serviceImages || [],
+        phoneNumber: serviceRequest.phoneNumber,
+        expertiseRequired: serviceRequest.expertiseRequired || [],
+        city: serviceRequest.city,
+        deadline: serviceRequest.deadline,
+        address: serviceRequest.address,
+        offers: serviceRequest.offers,
+      };
+
+      // Try real-time acceptance first
+      try {
+        const rtResponse = await acceptOfferRealtime(
+          requestId,
+          freelancerUsername,
+          serviceRequestData,
+          acceptedOffer
         );
-      } else {
-        alert(result.error || "Failed to accept offer");
+
+        if (rtResponse.requiresDbFallback) {
+          // Freelancer offline - save to database
+          console.log("Freelancer offline, creating order in database");
+          const dbResult = await createOrderFromAcceptedOffer(
+            requestId,
+            freelancerUsername,
+            serviceRequestData,
+            acceptedOffer
+          );
+
+          if (!dbResult.success) {
+            throw new Error(dbResult.error);
+          }
+        } else {
+          // Real-time success - also delete from database
+          await deleteServiceRequestFromDatabase(requestId);
+        }
+
+        // Remove request from local state
+        setServiceRequests((prev) =>
+          prev.filter((req) => req.requestId !== requestId)
+        );
+
+        alert("Offer accepted! Order created successfully.");
+      } catch (rtError) {
+        console.error("Real-time acceptance failed:", rtError);
+        // Fall back to database-only approach
+        const dbResult = await createOrderFromAcceptedOffer(
+          requestId,
+          freelancerUsername,
+          serviceRequestData,
+          acceptedOffer
+        );
+
+        if (dbResult.success) {
+          setServiceRequests((prev) =>
+            prev.filter((req) => req.requestId !== requestId)
+          );
+          alert("Offer accepted! Order created successfully.");
+        } else {
+          throw new Error(dbResult.error);
+        }
       }
     } catch (error) {
       console.error("Error accepting offer:", error);
-      alert("Failed to accept offer");
+      alert(error.message || "Failed to accept offer");
     }
   };
 
   const handleDeclineOffer = async (requestId, freelancerUsername) => {
     try {
-      const result = await updateOfferStatus(
-        requestId,
-        freelancerUsername,
-        "decline"
-      );
+      // Try real-time decline first
+      try {
+        const rtResponse = await declineOfferRealtime(
+          requestId,
+          freelancerUsername
+        );
 
-      if (result.success) {
-        // Update local state optimistically
+        if (rtResponse.requiresDbFallback) {
+          // Freelancer offline - update database
+          console.log("Freelancer offline, removing offer from database");
+          const dbResult = await removeDeclinedOfferFromDatabase(
+            requestId,
+            freelancerUsername
+          );
+
+          if (!dbResult.success) {
+            throw new Error(dbResult.error);
+          }
+        } else {
+          // Real-time success - also update database
+          await removeDeclinedOfferFromDatabase(requestId, freelancerUsername);
+        }
+
+        // Update local state
         setServiceRequests((prev) =>
           prev.map((request) =>
             request.requestId === requestId
@@ -102,12 +214,35 @@ export default function OffersModal({ isOpen, onClose }) {
               : request
           )
         );
-      } else {
-        alert(result.error || "Failed to decline offer");
+      } catch (rtError) {
+        console.error("Real-time decline failed:", rtError);
+        // Fall back to database-only approach
+        const dbResult = await removeDeclinedOfferFromDatabase(
+          requestId,
+          freelancerUsername
+        );
+
+        if (dbResult.success) {
+          setServiceRequests((prev) =>
+            prev.map((request) =>
+              request.requestId === requestId
+                ? {
+                    ...request,
+                    offers: request.offers.filter(
+                      (offer) =>
+                        offer.freelancerInfo.username !== freelancerUsername
+                    ),
+                  }
+                : request
+            )
+          );
+        } else {
+          throw new Error(dbResult.error);
+        }
       }
     } catch (error) {
       console.error("Error declining offer:", error);
-      alert("Failed to decline offer");
+      alert(error.message || "Failed to decline offer");
     }
   };
 
