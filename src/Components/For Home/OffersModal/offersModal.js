@@ -62,7 +62,7 @@ export default function OffersModal({ isOpen, onClose }) {
     try {
       const result = await getUserServiceRequests(initialUserData.username);
 
-      if (result.success) {
+      if (result?.success) {
         setServiceRequests(result.serviceRequests);
         setCurrentRequestIndex(0); // Reset to first request
       } else {

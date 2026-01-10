@@ -31,7 +31,8 @@ export function SocketProvider({ children, initialUserData }) {
 
     const connectSocket = async () => {
       try {
-        socketInstance = await initializeSocket();
+        // Pass user data (city and isFreelancer) to socket initialization
+        socketInstance = await initializeSocket(initialUserData);
         setSocket(socketInstance);
         setIsConnected(true);
 

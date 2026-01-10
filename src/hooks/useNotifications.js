@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { listenForNewServiceRequests, listenForNewOffers } from "@/Actions/ServiceRequests/serviceRequestSocketClient";
+import { getSocket } from "@/Socket_IO/socket";
 
 /**
  * Custom hook for managing notification counts for service requests and offers
@@ -15,6 +15,33 @@ export function useNotifications(username, city) {
   const [offersCount, setOffersCount] = useState(0);
   const [hasSeenRequests, setHasSeenRequests] = useState(true);
   const [hasSeenOffers, setHasSeenOffers] = useState(true);
+  const [isSocketReady, setIsSocketReady] = useState(false);
+
+  // Monitor socket connection status
+  useEffect(() => {
+    const socket = getSocket();
+
+    if (!socket) {
+      setIsSocketReady(false);
+      return;
+    }
+
+    const checkConnection = () => {
+      setIsSocketReady(socket.connected);
+    };
+
+    // Initial check
+    checkConnection();
+
+    // Listen for connection changes
+    socket.on("connect", checkConnection);
+    socket.on("disconnect", checkConnection);
+
+    return () => {
+      socket.off("connect", checkConnection);
+      socket.off("disconnect", checkConnection);
+    };
+  }, []);
 
   // Load initial counts from localStorage
   useEffect(() => {
@@ -33,42 +60,76 @@ export function useNotifications(username, city) {
 
   // Listen for new service requests in real-time
   useEffect(() => {
-    if (!username || !city) return;
+    if (!username || !city || !isSocketReady) {
+      console.log("⏸️ Notification listener waiting for:", { username, city, isSocketReady });
+      return;
+    }
 
-    const unsubscribe = listenForNewServiceRequests((serviceRequest) => {
-      // Don't count requests created by the current user
-      if (serviceRequest.customerInfo?.username !== username) {
+    const socket = getSocket();
+    if (!socket || !socket.connected) {
+      console.warn("⚠️ Socket not available for service requests listener");
+      return;
+    }
+
+    const handleNewServiceRequest = (serviceRequest) => {
+      console.log("📨 [useNotifications] New service request received:", serviceRequest);
+
+      // Only count requests from other users in the same city
+      if (serviceRequest.customerInfo?.username !== username && serviceRequest.city === city) {
         setRequestsCount((prev) => {
           const newCount = prev + 1;
           localStorage.setItem(`${username}_requestsCount`, newCount.toString());
+          console.log(`🔔 Service request notification count: ${newCount}`);
           return newCount;
         });
         setHasSeenRequests(false);
         localStorage.setItem(`${username}_hasSeenRequests`, 'false');
-        console.log("🔔 New service request notification");
       }
-    });
+    };
 
-    return unsubscribe;
-  }, [username, city]);
+    console.log(`✅ Registering service requests listener for ${username} in ${city}`);
+    socket.on("new-service-request-realtime", handleNewServiceRequest);
+
+    return () => {
+      console.log(`🧹 Cleaning up service requests listener for ${username}`);
+      socket.off("new-service-request-realtime", handleNewServiceRequest);
+    };
+  }, [username, city, isSocketReady]);
 
   // Listen for new offers in real-time
   useEffect(() => {
-    if (!username) return;
+    if (!username || !isSocketReady) {
+      console.log("⏸️ Offers listener waiting for:", { username, isSocketReady });
+      return;
+    }
 
-    const unsubscribe = listenForNewOffers((data) => {
+    const socket = getSocket();
+    if (!socket || !socket.connected) {
+      console.warn("⚠️ Socket not available for offers listener");
+      return;
+    }
+
+    const handleNewOffer = (data) => {
+      console.log("💼 [useNotifications] New offer received:", data);
+
       setOffersCount((prev) => {
         const newCount = prev + 1;
         localStorage.setItem(`${username}_offersCount`, newCount.toString());
+        console.log(`🔔 Offer notification count: ${newCount}`);
         return newCount;
       });
       setHasSeenOffers(false);
       localStorage.setItem(`${username}_hasSeenOffers`, 'false');
-      console.log("🔔 New offer notification");
-    });
+    };
 
-    return unsubscribe;
-  }, [username]);
+    console.log(`✅ Registering offers listener for ${username}`);
+    socket.on("new-offer-received-realtime", handleNewOffer);
+
+    return () => {
+      console.log(`🧹 Cleaning up offers listener for ${username}`);
+      socket.off("new-offer-received-realtime", handleNewOffer);
+    };
+  }, [username, isSocketReady]);
 
   // Mark requests as seen
   const markRequestsAsSeen = useCallback(() => {

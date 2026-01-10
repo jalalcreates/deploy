@@ -56,13 +56,18 @@ io.use(async (socket, next) => {
       return next(new Error("Authentication error: Invalid token payload"));
     }
 
+    // Extract city and isFreelancer from handshake auth
+    const city = socket.handshake.auth.city;
+    const isFreelancer = socket.handshake.auth.isFreelancer || false;
+
     socket.userData = {
       username: payload.username,
       userId: payload.userId || payload.username,
-      isFreelancer: payload.isFreelancer || false,
+      isFreelancer: isFreelancer,
+      city: city || null,
     };
 
-    console.log("✅ User authenticated:", payload.username);
+    console.log("✅ User authenticated:", payload.username, "| City:", city, "| Freelancer:", isFreelancer);
     next();
   } catch (error) {
     console.error("❌ Socket authentication error:", error.message);
@@ -1012,17 +1017,21 @@ io.on("connection", (socket) => {
       // Sanitize service request data before broadcasting
       const sanitizedRequest = sanitizeForEmit(serviceRequest);
 
-      // Get all online users in the same city
+      // Get all online freelancers in the same city (excluding the requester)
       const recipientSocketIds = [];
+      const recipients = [];
+
       onlineUsers.forEach((user, uname) => {
-        // Broadcast to everyone in the city (including requester for their own notification)
-        if (user.userData.city === city || uname === username) {
+        // Only broadcast to users in the same city, but NOT to the requester themselves
+        if (user.userData.city === city && uname !== username) {
           recipientSocketIds.push(user.socketId);
+          recipients.push(uname);
         }
       });
 
       console.log(
-        `🎯 Broadcasting to ${recipientSocketIds.length} users in ${city}`
+        `🎯 Broadcasting to ${recipientSocketIds.length} users in ${city}:`,
+        recipients.length > 0 ? recipients.join(", ") : "none"
       );
 
       // Broadcast to all recipients with sanitized data

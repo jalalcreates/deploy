@@ -1,0 +1,447 @@
+{
+  "categories": {
+    "plumbing": {
+      "displayName": "Plumbing",
+      "services": [
+        "General Plumber",
+        "Drain Cleaning",
+        "Pipe Installation",
+        "Pipe Repair",
+        "Leak Detection",
+        "Faucet Repair",
+        "Toilet Repair",
+        "Water Heater Installation",
+        "Water Heater Repair",
+        "Sewer Line Repair",
+        "Gas Line Installation",
+        "Backflow Prevention",
+        "Sump Pump Installation",
+        "Bathtub Installation",
+        "Shower Installation",
+        "Sink Installation",
+        "Garbage Disposal Repair",
+        "Water Filtration System",
+        "Emergency Plumbing"
+      ]
+    },
+    "electrical": {
+      "displayName": "Electrical",
+      "services": [
+        "General Electrician",
+        "Wiring Installation",
+        "Wiring Repair",
+        "Circuit Breaker Repair",
+        "Light Fixture Installation",
+        "Ceiling Fan Installation",
+        "Outlet Installation",
+        "Switch Installation",
+        "Panel Upgrade",
+        "Generator Installation",
+        "Home Automation",
+        "Smart Home Wiring",
+        "Security System Installation",
+        "Intercom System",
+        "Landscape Lighting",
+        "Electric Vehicle Charger Installation",
+        "Surge Protection",
+        "Emergency Electrical Service"
+      ]
+    },
+    "hvac": {
+      "displayName": "Heating & Cooling",
+      "services": [
+        "HVAC Technician",
+        "Air Conditioning Installation",
+        "Air Conditioning Repair",
+        "Furnace Installation",
+        "Furnace Repair",
+        "Duct Cleaning",
+        "Duct Installation",
+        "Thermostat Installation",
+        "Air Quality Testing",
+        "Humidifier Installation",
+        "Dehumidifier Installation",
+        "Ventilation Installation",
+        "Heat Pump Installation",
+        "Boiler Installation",
+        "Radiant Heating",
+        "Emergency HVAC Service"
+      ]
+    },
+    "carpentry": {
+      "displayName": "Carpentry & Woodwork",
+      "services": [
+        "General Carpenter",
+        "Custom Furniture",
+        "Cabinet Installation",
+        "Cabinet Repair",
+        "Door Installation",
+        "Door Repair",
+        "Window Installation",
+        "Window Repair",
+        "Deck Building",
+        "Deck Repair",
+        "Fence Installation",
+        "Fence Repair",
+        "Trim Installation",
+        "Molding Installation",
+        "Staircase Repair",
+        "Wood Floor Installation",
+        "Wood Floor Refinishing",
+        "Built-in Shelving",
+        "Custom Closets"
+      ]
+    },
+    "painting": {
+      "displayName": "Painting & Decoration",
+      "services": [
+        "Interior Painting",
+        "Exterior Painting",
+        "Cabinet Painting",
+        "Deck Staining",
+        "Fence Painting",
+        "Wallpaper Installation",
+        "Wallpaper Removal",
+        "Drywall Installation",
+        "Drywall Repair",
+        "Plastering",
+        "Popcorn Ceiling Removal",
+        "Texture Application",
+        "Epoxy Floor Coating",
+        "Garage Floor Painting"
+      ]
+    },
+    "roofing": {
+      "displayName": "Roofing",
+      "services": [
+        "Roof Installation",
+        "Roof Repair",
+        "Roof Inspection",
+        "Gutter Installation",
+        "Gutter Cleaning",
+        "Gutter Repair",
+        "Skylight Installation",
+        "Chimney Repair",
+        "Roof Leak Repair",
+        "Shingle Replacement",
+        "Flat Roof Repair",
+        "Emergency Roof Repair"
+      ]
+    },
+    "landscaping": {
+      "displayName": "Landscaping & Gardening",
+      "services": [
+        "Lawn Care",
+        "Lawn Mowing",
+        "Landscaping Design",
+        "Garden Maintenance",
+        "Tree Trimming",
+        "Tree Removal",
+        "Hedge Trimming",
+        "Mulching",
+        "Irrigation System Installation",
+        "Sprinkler Installation",
+        "Sod Installation",
+        "Patio Installation",
+        "Retaining Wall",
+        "Outdoor Kitchen",
+        "Fire Pit Installation",
+        "Landscape Lighting",
+        "Snow Removal",
+        "Leaf Removal"
+      ]
+    },
+    "cleaning": {
+      "displayName": "Cleaning Services",
+      "services": [
+        "House Cleaning",
+        "Deep Cleaning",
+        "Move-in Cleaning",
+        "Move-out Cleaning",
+        "Window Cleaning",
+        "Carpet Cleaning",
+        "Upholstery Cleaning",
+        "Pressure Washing",
+        "Gutter Cleaning",
+        "Chimney Cleaning",
+        "Air Duct Cleaning",
+        "Dryer Vent Cleaning",
+        "Post-construction Cleaning",
+        "Maid Service",
+        "Office Cleaning"
+      ]
+    },
+    "appliance": {
+      "displayName": "Appliance Repair",
+      "services": [
+        "Refrigerator Repair",
+        "Dishwasher Repair",
+        "Washing Machine Repair",
+        "Dryer Repair",
+        "Oven Repair",
+        "Stove Repair",
+        "Microwave Repair",
+        "Garbage Disposal Repair",
+        "Ice Maker Repair",
+        "Range Hood Repair",
+        "Freezer Repair",
+        "Water Heater Repair"
+      ]
+    },
+    "flooring": {
+      "displayName": "Flooring",
+      "services": [
+        "Hardwood Floor Installation",
+        "Hardwood Floor Refinishing",
+        "Laminate Floor Installation",
+        "Vinyl Floor Installation",
+        "Tile Floor Installation",
+        "Carpet Installation",
+        "Carpet Repair",
+        "Floor Repair",
+        "Subfloor Installation",
+        "Epoxy Flooring",
+        "Cork Flooring",
+        "Bamboo Flooring"
+      ]
+    },
+    "masonry": {
+      "displayName": "Masonry & Concrete",
+      "services": [
+        "Concrete Pouring",
+        "Concrete Repair",
+        "Driveway Installation",
+        "Patio Installation",
+        "Walkway Installation",
+        "Brick Laying",
+        "Brick Repair",
+        "Stone Veneer",
+        "Retaining Wall",
+        "Foundation Repair",
+        "Chimney Repair",
+        "Stucco Installation",
+        "Stucco Repair"
+      ]
+    },
+    "locksmith": {
+      "displayName": "Locksmith Services",
+      "services": [
+        "Lock Installation",
+        "Lock Repair",
+        "Lock Replacement",
+        "Rekey Service",
+        "Lockout Service",
+        "Safe Installation",
+        "Security System Installation",
+        "Deadbolt Installation",
+        "Smart Lock Installation",
+        "Master Key System",
+        "Emergency Locksmith"
+      ]
+    },
+    "pest_control": {
+      "displayName": "Pest Control",
+      "services": [
+        "General Pest Control",
+        "Termite Inspection",
+        "Termite Treatment",
+        "Rodent Control",
+        "Bed Bug Treatment",
+        "Ant Control",
+        "Mosquito Control",
+        "Wildlife Removal",
+        "Bee Removal",
+        "Wasp Nest Removal",
+        "Cockroach Control"
+      ]
+    },
+    "moving": {
+      "displayName": "Moving & Storage",
+      "services": [
+        "Local Moving",
+        "Long Distance Moving",
+        "Packing Services",
+        "Furniture Assembly",
+        "Furniture Disassembly",
+        "Junk Removal",
+        "Trash Removal",
+        "Storage Solutions"
+      ]
+    },
+    "handyman": {
+      "displayName": "General Handyman",
+      "services": [
+        "General Handyman",
+        "Furniture Assembly",
+        "TV Mounting",
+        "Picture Hanging",
+        "Shelf Installation",
+        "Blind Installation",
+        "Minor Repairs",
+        "Caulking",
+        "Weather Stripping",
+        "Door Installation",
+        "Small Projects"
+      ]
+    },
+    "pool": {
+      "displayName": "Pool Services",
+      "services": [
+        "Pool Cleaning",
+        "Pool Maintenance",
+        "Pool Repair",
+        "Pool Installation",
+        "Hot Tub Repair",
+        "Pool Opening",
+        "Pool Closing",
+        "Pool Equipment Repair"
+      ]
+    },
+    "windows": {
+      "displayName": "Window Services",
+      "services": [
+        "Window Installation",
+        "Window Repair",
+        "Window Replacement",
+        "Screen Repair",
+        "Window Cleaning",
+        "Storm Window Installation",
+        "Blind Installation",
+        "Curtain Installation"
+      ]
+    },
+    "garage": {
+      "displayName": "Garage Services",
+      "services": [
+        "Garage Door Installation",
+        "Garage Door Repair",
+        "Garage Door Opener Installation",
+        "Garage Door Opener Repair",
+        "Garage Organization",
+        "Garage Floor Coating"
+      ]
+    },
+    "kitchen_bathroom": {
+      "displayName": "Kitchen & Bathroom",
+      "services": [
+        "Kitchen Remodeling",
+        "Bathroom Remodeling",
+        "Countertop Installation",
+        "Backsplash Installation",
+        "Cabinet Installation",
+        "Vanity Installation",
+        "Shower Installation",
+        "Bathtub Installation",
+        "Tile Installation"
+      ]
+    },
+    "technology": {
+      "displayName": "Technology & IT",
+      "services": [
+        "Computer Repair",
+        "Network Installation",
+        "WiFi Setup",
+        "Smart Home Installation",
+        "Home Theater Installation",
+        "TV Installation",
+        "Security Camera Installation",
+        "Satellite Installation",
+        "Antenna Installation"
+      ]
+    },
+    "insulation": {
+      "displayName": "Insulation",
+      "services": [
+        "Attic Insulation",
+        "Wall Insulation",
+        "Basement Insulation",
+        "Crawl Space Insulation",
+        "Weatherization",
+        "Air Sealing"
+      ]
+    },
+    "automotive": {
+      "displayName": "Automotive",
+      "services": [
+        "Car Detailing",
+        "Auto Repair",
+        "Oil Change",
+        "Brake Repair",
+        "Tire Change",
+        "Car Wash",
+        "Mobile Mechanic"
+      ]
+    },
+    "tutoring": {
+      "displayName": "Tutoring & Education",
+      "services": [
+        "Math Tutor",
+        "Science Tutor",
+        "English Tutor",
+        "Music Lessons",
+        "Piano Lessons",
+        "Guitar Lessons",
+        "Art Lessons",
+        "Language Tutor",
+        "Test Prep",
+        "Homework Help"
+      ]
+    },
+    "wellness": {
+      "displayName": "Wellness & Fitness",
+      "services": [
+        "Personal Trainer",
+        "Yoga Instructor",
+        "Massage Therapy",
+        "Physical Therapy",
+        "Nutrition Counseling",
+        "Life Coaching"
+      ]
+    },
+    "childcare": {
+      "displayName": "Childcare & Petcare",
+      "services": [
+        "Babysitting",
+        "Nanny Services",
+        "Dog Walking",
+        "Pet Sitting",
+        "Pet Grooming",
+        "Dog Training"
+      ]
+    },
+    "event": {
+      "displayName": "Event Services",
+      "services": [
+        "Event Planning",
+        "Catering",
+        "Photography",
+        "Videography",
+        "DJ Services",
+        "Party Entertainment",
+        "Decorator"
+      ]
+    },
+    "sewing": {
+      "displayName": "Sewing & Alterations",
+      "services": [
+        "Clothing Alterations",
+        "Tailoring",
+        "Upholstery Repair",
+        "Curtain Making",
+        "Embroidery"
+      ]
+    },
+    "miscellaneous": {
+      "displayName": "Miscellaneous",
+      "services": [
+        "Personal Shopping",
+        "Errand Running",
+        "Organizing Services",
+        "Estate Sale Services",
+        "Notary Services",
+        "Document Preparation",
+        "Translation Services"
+      ]
+    }
+  }
+}

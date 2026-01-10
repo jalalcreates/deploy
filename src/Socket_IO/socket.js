@@ -9,8 +9,9 @@ let isConnecting = false;
 /**
  * Initialize socket connection with authentication
  * This should be called after user logs in
+ * @param {object} userData - User data containing city and isFreelancer
  */
-export async function initializeSocket() {
+export async function initializeSocket(userData = {}) {
   // Prevent multiple simultaneous connection attempts
   if (isConnecting || (socket && socket.connected)) {
     console.log("Socket already connected or connecting");
@@ -32,11 +33,13 @@ export async function initializeSocket() {
       throw new Error("Failed to retrieve authentication token");
     }
 
-    // Create socket connection with auth token
+    // Create socket connection with auth token and user metadata
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
     socket = io(socketUrl, {
       auth: {
         token: data.token,
+        city: userData.currentCity || userData.city,
+        isFreelancer: userData.isFreelancer || false,
       },
       credentials: "include",
       transports: ["websocket", "polling"],

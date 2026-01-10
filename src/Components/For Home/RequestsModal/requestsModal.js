@@ -5,70 +5,107 @@ import styles from "./RequestsModal.module.css";
 import AudioPlayer from "../AudioPlayer/audioPlayer";
 import RequestDetailModal from "../RequestDetailModal/requestDetailModal";
 import axios from "axios";
-import {
-  listenForNewServiceRequests,
-  listenForServiceRequestFulfilled,
-} from "@/Actions/ServiceRequests/serviceRequestSocketClient";
+import { getSocket } from "@/Socket_IO/socket";
 
 export default function RequestsModal({ isOpen, onClose, city }) {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isSocketReady, setIsSocketReady] = useState(false);
 
+  // Monitor socket connection status
   useEffect(() => {
-    if (isOpen && city) {
-      // Fetch existing requests from database
-      axios
-        .post("/api/get-service-requests", { city })
-        .then((res) => {
-          if (res.data.success) {
-            setRequests(res.data.requests);
-          } else {
-            console.error("Failed to load requests:", res.data.error);
-          }
-        })
-        .catch((err) => {
-          console.error("Error fetching service requests:", err);
-        });
+    const socket = getSocket();
 
-      // Listen for new service requests in real-time
-      const unsubscribeNewRequests = listenForNewServiceRequests(
-        (serviceRequest) => {
-          console.log("📨 New service request received:", serviceRequest);
-
-          // Only add if it's in the same city
-          if (serviceRequest.city === city) {
-            setRequests((prev) => {
-              // Check if request already exists
-              const exists = prev.some(
-                (req) => req._id === serviceRequest._id || req.requestId === serviceRequest.requestId
-              );
-              if (exists) return prev;
-
-              // Add to beginning of list (newest first)
-              return [serviceRequest, ...prev];
-            });
-          }
-        }
-      );
-
-      // Listen for service requests that got fulfilled
-      const unsubscribeFulfilled = listenForServiceRequestFulfilled((data) => {
-        console.log("📋 Service request fulfilled:", data);
-
-        // Remove fulfilled request from list
-        setRequests((prev) =>
-          prev.filter((req) => req.requestId !== data.requestId)
-        );
-      });
-
-      // Cleanup listeners on unmount
-      return () => {
-        unsubscribeNewRequests();
-        unsubscribeFulfilled();
-      };
+    if (!socket) {
+      setIsSocketReady(false);
+      return;
     }
+
+    const checkConnection = () => {
+      setIsSocketReady(socket.connected);
+    };
+
+    checkConnection();
+    socket.on("connect", checkConnection);
+    socket.on("disconnect", checkConnection);
+
+    return () => {
+      socket.off("connect", checkConnection);
+      socket.off("disconnect", checkConnection);
+    };
+  }, []);
+
+  // Fetch requests when modal opens
+  useEffect(() => {
+    if (!isOpen || !city) return;
+
+    // Fetch existing requests from database
+    axios
+      .post("/api/get-service-requests", { city })
+      .then((res) => {
+        if (res.data.success) {
+          setRequests(res.data.requests);
+        } else {
+          console.error("Failed to load requests:", res.data.error);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching service requests:", err);
+      });
   }, [isOpen, city]);
+
+  // Listen for real-time updates (socket-aware)
+  useEffect(() => {
+    if (!city || !isSocketReady) {
+      console.log("⏸️ [RequestsModal] Waiting for socket:", { city, isSocketReady });
+      return;
+    }
+
+    const socket = getSocket();
+    if (!socket || !socket.connected) {
+      console.warn("⚠️ [RequestsModal] Socket not available");
+      return;
+    }
+
+    const handleNewServiceRequest = (serviceRequest) => {
+      console.log("📨 [RequestsModal] New service request received:", serviceRequest);
+
+      // Only add if it's in the same city
+      if (serviceRequest.city === city) {
+        setRequests((prev) => {
+          // Check if request already exists
+          const exists = prev.some(
+            (req) => req.requestId === serviceRequest.requestId
+          );
+          if (exists) return prev;
+
+          // Add to beginning of list (newest first)
+          return [serviceRequest, ...prev];
+        });
+      }
+    };
+
+    const handleServiceRequestFulfilled = (data) => {
+      console.log("📋 [RequestsModal] Service request fulfilled:", data);
+
+      // Remove fulfilled request from list
+      setRequests((prev) =>
+        prev.filter((req) => req.requestId !== data.requestId)
+      );
+    };
+
+    console.log(`✅ [RequestsModal] Registering listeners for city: ${city}`);
+    socket.on("new-service-request-realtime", handleNewServiceRequest);
+    socket.on("service-request-fulfilled", handleServiceRequestFulfilled);
+
+    // Cleanup listeners on unmount
+    return () => {
+      console.log(`🧹 [RequestsModal] Cleaning up listeners for city: ${city}`);
+      socket.off("new-service-request-realtime", handleNewServiceRequest);
+      socket.off("service-request-fulfilled", handleServiceRequestFulfilled);
+    };
+  }, [city, isSocketReady]);
 
   const handleViewRequest = (request) => {
     setSelectedRequest(request);
