@@ -21,6 +21,7 @@ import {
   updateOrderLocation,
 } from "@/Actions/Orders/orders";
 import { updateOrderProgress } from "@/Actions/Orders/fallbackHandler";
+import { HiClipboardDocumentList } from "react-icons/hi2";
 
 export default function OrdersSidebar() {
   const { initialUserData } = useUserData();
@@ -32,6 +33,7 @@ export default function OrdersSidebar() {
     useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [currentReminderOrder, setCurrentReminderOrder] = useState(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Modal states for the features
   const [showArrivalModal, setShowArrivalModal] = useState(false);
@@ -1079,7 +1081,41 @@ export default function OrdersSidebar() {
 
   return (
     <>
-      <div className={styles.ordersSidebar}>
+      {/* Mobile Toggle Button */}
+      <button
+        className={styles.mobileToggleBtn}
+        onClick={() => setIsMobileSidebarOpen(true)}
+        aria-label="Open orders sidebar"
+      >
+        <HiClipboardDocumentList className={styles.toggleIcon} />
+        {orders.length > 0 && (
+          <span className={styles.orderCount}>{orders.length}</span>
+        )}
+      </button>
+
+      {/* Mobile Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          className={styles.mobileOverlay}
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div
+        className={`${styles.ordersSidebar} ${
+          isMobileSidebarOpen ? styles.mobileOpen : ""
+        }`}
+      >
+        {/* Mobile Close Button */}
+        <button
+          className={styles.mobileCloseBtn}
+          onClick={() => setIsMobileSidebarOpen(false)}
+          aria-label="Close orders sidebar"
+        >
+          ✕
+        </button>
+
         <h2 className={styles.ordersHeader}>Orders</h2>
         <div className={styles.ordersList}>
           {orders.length > 0 ? (

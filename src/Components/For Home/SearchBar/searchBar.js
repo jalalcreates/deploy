@@ -9,6 +9,7 @@ import {
   searchFreelancersByService,
   getAvailableCities,
 } from "@/Actions/Search/search";
+import { HiMagnifyingGlass, HiChevronRight } from "react-icons/hi2";
 
 export default function SearchBar() {
   // Search state
@@ -216,7 +217,7 @@ export default function SearchBar() {
     <>
       <div className={styles.searchBar}>
         <div className={styles.searchContainer}>
-          <span className={styles.searchIcon}>🔍</span>
+          <HiMagnifyingGlass className={styles.searchIcon} />
           <input
             type="text"
             className={styles.searchInput}
@@ -318,7 +319,7 @@ export default function SearchBar() {
                               {service.category}
                             </p>
                           </div>
-                          <span className={styles.arrow}>→</span>
+                          <HiChevronRight className={styles.arrow} />
                         </div>
                       ))
                     ) : (

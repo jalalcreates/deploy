@@ -9,7 +9,6 @@
     "start": "next start",
     "lint": "next lint"
   },
-  "type": "module",
   "dependencies": {
     "@aws-sdk/credential-providers": "^3.614.0",
     "@mongodb-js/zstd": "^1.2.0",
@@ -35,6 +34,7 @@
     "nodemon": "^3.1.10",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-icons": "^5.5.0",
     "react-leaflet": "^5.0.0",
     "server-only": "^0.0.1",
     "snappy": "^7.2.2",

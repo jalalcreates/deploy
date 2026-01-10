@@ -2,14 +2,11 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  background: linear-gradient(
-    90deg,
-    rgba(139, 92, 246, 0.05) 0%,
-    rgba(255, 255, 255, 0.98) 50%,
-    rgba(139, 92, 246, 0.05) 100%
-  );
-  border-bottom: 1px solid rgba(139, 92, 246, 0.12);
-  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+  padding: 1.5rem 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .searchContainer {
@@ -20,22 +17,28 @@
 
 .searchInput {
   width: 100%;
-  padding: 0.875rem 1rem 0.875rem 3.25rem;
-  height: 3.25rem;
+  padding: 1rem 1.25rem 1rem 3.5rem;
+  height: 3.5rem;
   font-size: 1rem;
-  border: 1.5px solid rgba(139, 92, 246, 0.25);
+  border: 1px solid rgba(17, 24, 39, 0.15);
   border-radius: 0.75rem;
   background: white;
-  transition: all 0.3s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 500;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.searchInput::placeholder {
+  color: #9ca3af;
 }
 
 .searchInput:focus {
   outline: none;
   border-color: #8b5cf6;
   background: white;
-  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1),
-    inset 0 0 0 1px rgba(139, 92, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1),
+              0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .searchIcon {
@@ -44,9 +47,9 @@
   top: 50%;
   transform: translateY(-50%);
   color: #8b5cf6;
-  font-weight: 600;
   font-size: 1.25rem;
   pointer-events: none;
+  flex-shrink: 0;
 }
 
 .searchingIndicator {
@@ -70,22 +73,22 @@
   }
 }
 
-/* CHANGE: Removed glasmorphism - clean white dropdown with subtle purple accents */
+/* Clean white dropdown with subtle accents */
 .dropdownMenu {
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   background: white;
-  border: 1px solid rgba(139, 92, 246, 0.18);
-  border-radius: 1rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08),
-    0 0 0 1px rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(17, 24, 39, 0.1);
+  border-radius: 0.875rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+              0 4px 6px -2px rgba(0, 0, 0, 0.05);
   overflow: hidden;
-  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   max-height: 600px;
-  z-index: 1000;
+  z-index: 1050;
 }
 
 @keyframes slideDown {
@@ -115,22 +118,22 @@
 }
 
 .columnHeader {
-  padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
-  background: rgba(139, 92, 246, 0.04);
+  background: rgba(249, 250, 251, 1);
 }
 
 .columnHeader h4 {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  color: #8b5cf6;
+  color: #6b7280;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.05em;
 }
 
 .resultCount {
@@ -155,16 +158,16 @@
   padding: 0.75rem;
 }
 
-/* CHANGE: Improved freelancer result item with better container packing */
+/* Improved freelancer result item with better container packing */
 .resultItem {
   display: flex;
   align-items: center;
   gap: 0.875rem;
-  padding: 1rem;
-  margin-bottom: 0.5rem;
-  border-radius: 0.75rem;
+  padding: 0.875rem;
+  margin-bottom: 0.375rem;
+  border-radius: 0.625rem;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   text-decoration: none;
   color: inherit;
@@ -173,9 +176,9 @@
 }
 
 .resultItem:hover {
-  background-color: rgba(139, 92, 246, 0.1);
-  border-color: rgba(139, 92, 246, 0.2);
-  transform: translateX(4px);
+  background-color: rgba(249, 250, 251, 1);
+  border-color: rgba(139, 92, 246, 0.15);
+  transform: translateX(2px);
 }
 
 .resultAvatar {
@@ -187,32 +190,34 @@
   border: 2px solid rgba(139, 92, 246, 0.2);
 }
 
-/* CHANGE: Better structured resultInfo with all data nicely packed */
+/* Better structured resultInfo with all data nicely packed */
 .resultInfo {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .resultName {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #111827;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.01em;
 }
 
 .resultDetail {
   margin: 0;
-  font-size: 0.8rem;
-  color: #9ca3af;
+  font-size: 0.8125rem;
+  color: #6b7280;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 500;
 }
 
 .resultRating {
@@ -295,9 +300,10 @@
 
 .arrow {
   color: #8b5cf6;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   margin-left: 0.75rem;
   transition: transform 0.2s;
+  flex-shrink: 0;
 }
 
 .serviceItem:hover .arrow {
@@ -312,7 +318,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1001;
+  z-index: 1200;
   animation: fadeIn 0.3s ease-out;
 }
 
@@ -633,4 +639,58 @@
 .giveOrderBtn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(139, 92, 246, 0.3);
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .searchBar {
+    padding: 1rem 1.25rem;
+  }
+
+  .searchInput {
+    height: 3rem;
+    padding: 0.875rem 1rem 0.875rem 3rem;
+    font-size: 0.9375rem;
+  }
+
+  .searchIcon {
+    left: 0.875rem;
+    font-size: 1.125rem;
+  }
+
+  .dropdownMenu {
+    margin-top: 0.5rem;
+    border-radius: 0.75rem;
+  }
+
+  .dropdownContent {
+    flex-direction: column;
+  }
+
+  .columnDivider {
+    height: 1px;
+    width: 100%;
+    background: linear-gradient(to right, transparent, rgba(139, 92, 246, 0.15), transparent);
+  }
+
+  .columnHeader {
+    padding: 0.875rem 1rem;
+  }
+
+  .resultItem {
+    padding: 0.75rem;
+  }
+
+  .resultAvatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .resultName {
+    font-size: 0.875rem;
+  }
+
+  .resultDetail {
+    font-size: 0.75rem;
+  }
 }

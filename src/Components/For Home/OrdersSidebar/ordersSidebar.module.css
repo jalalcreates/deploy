@@ -1,27 +1,27 @@
 .ordersSidebar {
   position: fixed;
   right: 0;
-  top: 4rem;
-  height: calc(100vh - 4rem);
+  top: 0;
+  height: 100vh;
   width: 18rem;
-  background: linear-gradient(
-    180deg,
-    rgba(139, 92, 246, 0.08) 0%,
-    #ffffff 50%,
-    rgba(139, 92, 246, 0.12) 100%
-  );
-  border-left: 1px solid rgba(139, 92, 246, 0.25);
-  padding: 1rem;
-  padding-bottom: 6rem; /* Add extra padding to prevent overlap with floating button */
+  background: #ffffff;
+  border-left: 1px solid rgba(17, 24, 39, 0.1);
+  padding: 1.5rem;
+  padding-top: 5.5rem;
+  padding-bottom: 6rem;
   overflow-y: auto;
-  backdrop-filter: blur(4px);
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.04);
 }
 
 .ordersHeader {
-  font-size: 1.125rem;
+  font-size: 1rem;
   font-weight: 700;
-  color: #8b5cf6;
-  margin: 0 0 1rem 0;
+  color: #111827;
+  margin: 0 0 1.25rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid rgba(139, 92, 246, 0.2);
 }
 
 .ordersList {
@@ -32,12 +32,13 @@
 
 .noOrdersText {
   text-align: center;
-  color: #6b7280;
-  font-style: italic;
-  padding: 2rem 1rem;
-  background: rgba(139, 92, 246, 0.05);
-  border-radius: 0.5rem;
-  border: 1px dashed rgba(139, 92, 246, 0.2);
+  color: #9ca3af;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 2.5rem 1.5rem;
+  background: rgba(249, 250, 251, 1);
+  border-radius: 0.75rem;
+  border: 1px dashed rgba(17, 24, 39, 0.15);
   margin: 0;
 }
 
@@ -72,26 +73,148 @@
 
 /* Custom Scrollbar */
 .ordersSidebar::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .ordersSidebar::-webkit-scrollbar-track {
-  background: rgba(139, 92, 246, 0.1);
-  border-radius: 3px;
+  background: transparent;
 }
 
 .ordersSidebar::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 10px;
   transition: background 0.2s;
 }
 
 .ordersSidebar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  background: rgba(139, 92, 246, 0.5);
+}
+
+/* Mobile Toggle Button */
+.mobileToggleBtn {
+  display: none;
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+  z-index: 60;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mobileToggleBtn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.5);
+}
+
+.mobileToggleBtn:active {
+  transform: scale(0.95);
+}
+
+.toggleIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.orderCount {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  background: #ef4444;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  border-radius: 0.625rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+}
+
+/* Mobile Overlay */
+.mobileOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1100;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Mobile Close Button */
+.mobileCloseBtn {
+  display: none;
+  position: absolute;
+  top: 1.25rem;
+  left: 1.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: rgba(17, 24, 39, 0.1);
+  border: none;
+  border-radius: 50%;
+  color: #374151;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.mobileCloseBtn:hover {
+  background: rgba(17, 24, 39, 0.15);
+  color: #111827;
 }
 
 @media (max-width: 768px) {
+  .mobileToggleBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobileOverlay {
+    display: block;
+  }
+
+  .mobileCloseBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .ordersSidebar {
-    display: none;
+    position: fixed;
+    right: -100%;
+    top: 0;
+    height: 100vh;
+    width: 85%;
+    max-width: 24rem;
+    z-index: 1110;
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding-top: 4.5rem;
+  }
+
+  .ordersSidebar.mobileOpen {
+    right: 0;
   }
 }

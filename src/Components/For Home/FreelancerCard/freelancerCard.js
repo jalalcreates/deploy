@@ -1,4 +1,5 @@
 import styles from "./freelancerCard.module.css";
+import { HiMapPin, HiClock, HiCheckBadge } from "react-icons/hi2";
 
 export default function FreelancerCard({ freelancer, onGiveOrder }) {
   const renderStars = (rating) => {
@@ -35,20 +36,22 @@ export default function FreelancerCard({ freelancer, onGiveOrder }) {
         <div className={styles.freelancerNameSection}>
           <h3 className={styles.freelancerName}>{freelancer.username}</h3>
           {freelancer.certified && (
-            <span className={styles.certifiedBadge}>🏆 Certified</span>
+            <span className={styles.certifiedBadge}>
+              <HiBadgeCheck className={styles.badgeIcon} /> Certified
+            </span>
           )}
         </div>
       </div>
 
       <div className={styles.freelancerMeta}>
         <div className={styles.metaItem}>
-          <span className={styles.metaIcon}>📍</span>
+          <HiMapPin className={styles.metaIcon} />
           <span className={styles.metaText}>
             {freelancer.currentCity || "Unknown"}
           </span>
         </div>
         <div className={styles.metaItem}>
-          <span className={styles.metaIcon}>⏰</span>
+          <HiClock className={styles.metaIcon} />
           <span className={styles.metaText}>
             {freelancer.workExperience?.length
               ? `${freelancer.workExperience.reduce(

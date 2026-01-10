@@ -11,30 +11,50 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
+  z-index: 1300;
+  padding: 1.5rem;
   overflow-y: auto;
 }
+
 .floatingAction {
   position: fixed;
   bottom: 1.5rem;
-  right: 20rem;
-  /* z-index: 10; */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
 }
 
 .actionBtn {
   height: 3.5rem;
-  padding: 0 1.5rem;
+  padding: 0 1.75rem;
   border-radius: 9999px;
-  background: #8b5cf6;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
   color: #ffffff;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 0.9375rem;
   border: none;
   cursor: pointer;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  transition: background-color 0.2s;
+  box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.3),
+              0 2px 4px -1px rgba(139, 92, 246, 0.2);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: -0.01em;
 }
 
 .actionBtn:hover {
-  background: #7c3aed;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.4),
+              0 4px 6px -2px rgba(139, 92, 246, 0.3);
+}
+
+.actionBtn:active {
+  transform: translateY(0);
+}
+
+/* Responsive positioning */
+@media (max-width: 768px) {
+  .floatingAction {
+    bottom: 5.5rem;
+    left: 50%;
+  }
 }
